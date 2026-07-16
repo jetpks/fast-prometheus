@@ -2,6 +2,9 @@ AllCops:
   TargetRubyVersion: 3.4
   NewCops: disable
   SuggestExtensions: false
+  Exclude:
+    - lib/fast_prometheus_client/formats/metrics_pb.rb
+    - vendor/**/*
 Layout/LineLength:
   Max: 120
 Style/Documentation:
