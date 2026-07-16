@@ -1,0 +1,122 @@
+# frozen_string_literal: true
+
+require_relative "metric"
+
+module FastPrometheusClient
+  # Native (sparse exponential) histogram.
+  #
+  # Covers the full float range with sparse base-2 exponential buckets.
+  # Bucket layout matches the Prometheus native histogram model exactly.
+  class NativeHistogram < Metric
+    # Inner value object holding one label series' histogram data.
+    # Per-series because downscaling is independent per series.
+    class Slot
+      attr_reader :zero_threshold
+      attr_accessor :schema, :sum, :count, :zero_count, :positive, :negative
+
+      def initialize(schema:, zero_threshold:)
+        @schema = schema
+        @zero_threshold = zero_threshold
+        @sum = 0.0
+        @count = 0
+        @zero_count = 0
+        @positive = {}
+        @negative = {}
+      end
+
+      # Sorted array of [index, count] pairs for positive side.
+      def positive_buckets
+        @positive.sort
+      end
+
+      # Sorted array of [index, count] pairs for negative side.
+      def negative_buckets
+        @negative.sort
+      end
+    end
+
+    attr_reader :schema, :zero_threshold, :max_buckets
+
+    # rubocop: disable Layout/LineLength
+    def initialize(name, docstring:, labels: [], preset_labels: {}, schema: 3, zero_threshold: 2.0**-128, max_buckets: 160)
+      # rubocop: enable Layout/LineLength
+      raise ArgumentError, "schema must be an Integer in -4..8" unless schema.is_a?(Integer) && (-4..8).include?(schema)
+
+      valid_zero_threshold = zero_threshold.is_a?(Float) && zero_threshold >= 0
+      raise ArgumentError, "zero_threshold must be a Float >= 0" unless valid_zero_threshold
+
+      valid_max_buckets = max_buckets.is_a?(Integer) && max_buckets.positive?
+      raise ArgumentError, "max_buckets must be an Integer > 0" unless valid_max_buckets
+
+      @schema = schema
+      @zero_threshold = zero_threshold
+      @max_buckets = max_buckets
+
+      super(name, docstring: docstring, labels: labels, preset_labels: preset_labels)
+    end
+
+    def type
+      :native_histogram
+    end
+
+    # Record an observation.
+    def observe(value, labels: {})
+      v = value.to_f
+      key = resolve(labels)
+
+      slot = store[key] ||= Slot.new(schema: @schema, zero_threshold: @zero_threshold)
+
+      slot.sum += v
+      slot.count += 1
+
+      if v.abs <= slot.zero_threshold
+        slot.zero_count += 1
+      elsif v > slot.zero_threshold
+        idx = index_for(v, slot.schema)
+        slot.positive[idx] = (slot.positive[idx] || 0) + 1
+      else
+        idx = index_for(-v, slot.schema)
+        slot.negative[idx] = (slot.negative[idx] || 0) + 1
+      end
+
+      downscale(slot) while slot.positive.size + slot.negative.size > @max_buckets && slot.schema > -4
+    end
+
+    # Get the slot for a label set, or nil if no observations recorded.
+    def get(labels: {})
+      key = resolve(labels)
+      store[key]
+    end
+
+    private
+
+    # rubocop: disable Naming/MethodParameterName
+    # rubocop: disable Style/RedundantParentheses
+    def index_for(v, schema)
+      factor = 2.0**schema
+      idx = (Math.log2(v) * factor).ceil
+      idx -= 1 while 2.0**((idx - 1) / factor) >= v
+      idx += 1 while 2.0**(idx / factor) < v
+      idx
+    end
+
+    def downscale(slot)
+      delta = 1
+      new_positive = {}
+      slot.positive.each do |idx, count|
+        new_idx = -((-idx).div(1 << delta))
+        new_positive[new_idx] = (new_positive[new_idx] || 0) + count
+      end
+      new_negative = {}
+      slot.negative.each do |idx, count|
+        new_idx = -((-idx).div(1 << delta))
+        new_negative[new_idx] = (new_negative[new_idx] || 0) + count
+      end
+      slot.positive = new_positive
+      slot.negative = new_negative
+      slot.schema -= delta
+    end
+    # rubocop: enable Style/RedundantParentheses
+    # rubocop: enable Naming/MethodParameterName
+  end
+end
