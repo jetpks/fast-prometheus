@@ -11,3 +11,8 @@ group :test do
   gem "covered"
   gem "rubocop"
 end
+
+group :benchmark do
+  gem "benchmark-ips"
+  gem "prometheus-client"
+end

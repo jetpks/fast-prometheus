@@ -9,6 +9,7 @@ bundle install
 bundle exec sus
 bundle exec rubocop
 bundle exec ruby script/e2e_prometheus_scrape.rb
+BENCH_QUICK=1 bundle exec ruby benchmark/observe.rb
 ```
 
 ## Style Rules
