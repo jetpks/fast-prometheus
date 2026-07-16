@@ -8,6 +8,7 @@ Standing context for agents working in this repository.
 bundle install
 bundle exec sus
 bundle exec rubocop
+bundle exec ruby script/e2e_prometheus_scrape.rb
 ```
 
 ## Style Rules
