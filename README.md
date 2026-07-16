@@ -7,3 +7,17 @@ gRPC (async-grpc) and HTTP.
 
 Not a fork of prometheus/client_ruby — a new gem that uses it as the reference
 for supported surface.
+
+> ⚠️ Under construction. Not yet released.
+
+## Installation
+
+```bash
+gem install fast-prometheus-client
+```
+
+Or add to your `Gemfile`:
+
+```ruby
+gem "fast-prometheus-client"
+```
