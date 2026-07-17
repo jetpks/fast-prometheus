@@ -28,7 +28,7 @@ module FastPrometheusClient
 
     # Remove a metric by name.
     def unregister(name)
-      @metrics.reject! { |m| m.name == name }
+      @metrics.delete_if { |m| m.name == name }
       @by_name.delete(name)
     end
 
@@ -69,7 +69,7 @@ module FastPrometheusClient
 
     # Collect an immutable snapshot of all registered metrics.
     def collect
-      Snapshot.of(@metrics.dup)
+      Snapshot.of(@metrics)
     end
   end
 
