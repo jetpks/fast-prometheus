@@ -6,7 +6,6 @@ module FastPrometheusClient
   module Formats
     module Protobuf
       CONTENT_TYPE = "application/vnd.google.protobuf; proto=io.prometheus.client.MetricFamily; encoding=delimited"
-      private_constant :CONTENT_TYPE
 
       TYPE_MAP = {
         counter: Io::Prometheus::Client::MetricType::COUNTER,
@@ -26,12 +25,12 @@ module FastPrometheusClient
           name: metric_snapshot.name.to_s,
           help: metric_snapshot.docstring,
           type: TYPE_MAP.fetch(metric_snapshot.type),
-          metric: metric_snapshot.series.map { |s| build_metric(s, metric_snapshot.type, metric_snapshot.label_names) }
+          metric: metric_snapshot.series.map { |s| build_metric(s, metric_snapshot.type) }
         )
       end
 
-      def self.build_metric(series, type, label_names)
-        labels = label_names.zip(series.labels).map do |name, value|
+      def self.build_metric(series, type)
+        labels = series.labels.map do |name, value|
           Io::Prometheus::Client::LabelPair.new(name: name.to_s, value: value)
         end
 
