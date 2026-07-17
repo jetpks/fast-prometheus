@@ -112,33 +112,24 @@ module FastPrometheusClient
 
     private
 
-    # rubocop: disable Naming/MethodParameterName
-    # rubocop: disable Style/RedundantParentheses
-    def index_for(v, schema)
+    def index_for(value, schema)
       factor = 2.0**schema
-      idx = (Math.log2(v) * factor).ceil
-      idx -= 1 while 2.0**((idx - 1) / factor) >= v
-      idx += 1 while 2.0**(idx / factor) < v
+      idx = (Math.log2(value) * factor).ceil
+      idx -= 1 while 2.0**((idx - 1) / factor) >= value
+      idx += 1 while 2.0**(idx / factor) < value
       idx
     end
 
     def downscale(slot)
       delta = 1
-      new_positive = {}
-      slot.positive.each do |idx, count|
-        new_idx = -((-idx).div(1 << delta))
-        new_positive[new_idx] = (new_positive[new_idx] || 0) + count
+      shift = 1 << delta
+      slot.positive = slot.positive.each_with_object({}) do |(idx, count), hash|
+        hash[-(-idx / shift)] = (hash[-(-idx / shift)] || 0) + count
       end
-      new_negative = {}
-      slot.negative.each do |idx, count|
-        new_idx = -((-idx).div(1 << delta))
-        new_negative[new_idx] = (new_negative[new_idx] || 0) + count
+      slot.negative = slot.negative.each_with_object({}) do |(idx, count), hash|
+        hash[-(-idx / shift)] = (hash[-(-idx / shift)] || 0) + count
       end
-      slot.positive = new_positive
-      slot.negative = new_negative
       slot.schema -= delta
     end
-    # rubocop: enable Style/RedundantParentheses
-    # rubocop: enable Naming/MethodParameterName
   end
 end
