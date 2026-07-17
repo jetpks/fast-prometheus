@@ -36,12 +36,12 @@ module FastPrometheusClient
       end
 
       def ensure_counter
-        name = :"#{@prefix}_requests_total"
+        name = "#{@prefix}_requests_total".to_sym
         @registry.get(name) || @registry.counter(name, docstring: "Total HTTP requests", labels: %i[method status])
       end
 
       def ensure_histogram
-        name = :"#{@prefix}_request_duration_seconds"
+        name = "#{@prefix}_request_duration_seconds".to_sym
         existing = @registry.get(name)
         return existing if existing
 

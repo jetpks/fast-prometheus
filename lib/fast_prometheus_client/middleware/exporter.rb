@@ -13,6 +13,12 @@ module FastPrometheusClient
     class Exporter < Protocol::HTTP::Middleware
       PROTOBUF_ACCEPT = "application/vnd.google.protobuf"
 
+      FORMAT_MAP = {
+        true => [Formats::Protobuf, Formats::Protobuf::CONTENT_TYPE],
+        false => [Formats::Text, Formats::Text::CONTENT_TYPE]
+      }.freeze
+      private_constant :FORMAT_MAP
+
       def initialize(delegate, registry: FastPrometheusClient.registry, path: "/metrics")
         super(delegate)
         @registry = registry
@@ -27,14 +33,8 @@ module FastPrometheusClient
 
       def serve_metrics(request)
         snapshot = @registry.collect
-
-        if protobuf?(request)
-          content_type = Formats::Protobuf::CONTENT_TYPE
-          body = Formats::Protobuf.render(snapshot)
-        else
-          content_type = Formats::Text::CONTENT_TYPE
-          body = Formats::Text.render(snapshot)
-        end
+        format, content_type = FORMAT_MAP[protobuf?(request)]
+        body = format.render(snapshot)
 
         if gzip?(request)
           body = Zlib.gzip(body)
