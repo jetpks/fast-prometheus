@@ -21,4 +21,5 @@ Gem::Specification.new do |spec|
   spec.add_dependency "async-http"
   spec.add_dependency "async-grpc"
   spec.add_dependency "google-protobuf"
+  spec.add_dependency "console"
 end
