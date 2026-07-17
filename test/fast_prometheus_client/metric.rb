@@ -70,6 +70,37 @@ describe FastPrometheusClient::Metric do
       metric = TestMetric.new(:test, docstring: "help", labels: %i[method status])
       expect { metric.public_resolve(method: "get") }.to raise_exception(FastPrometheusClient::InvalidLabelSet)
     end
+
+    it "resolves false per-call label to \"false\"" do
+      metric = TestMetric.new(:test, docstring: "help", labels: [:ok])
+      expect(metric.public_resolve(ok: false)).to be(:==, ["false"])
+    end
+
+    it "resolves nil per-call label to \"\"" do
+      metric = TestMetric.new(:test, docstring: "help", labels: [:ok])
+      expect(metric.public_resolve(ok: nil)).to be(:==, [""])
+    end
+
+    it "resolves false via with_labels identically to per-call labels" do
+      metric = TestMetric.new(:test, docstring: "help", labels: [:ok])
+      metric.touch(labels: { ok: false })
+      bound = metric.with_labels(ok: false)
+      bound.touch
+      expect(metric.values.keys.map { |h| h[:ok] }.sort).to be(:==, ["false"])
+    end
+
+    it "resolves nil via with_labels identically to per-call labels" do
+      metric = TestMetric.new(:test, docstring: "help", labels: [:ok])
+      metric.touch(labels: { ok: nil })
+      bound = metric.with_labels(ok: nil)
+      bound.touch
+      expect(metric.values.keys.map { |h| h[:ok] }.sort).to be(:==, [""])
+    end
+
+    it "raises InvalidLabelSet when key absent from both labels and presets" do
+      metric = TestMetric.new(:test, docstring: "help", labels: %i[ok extra])
+      expect { metric.public_resolve(ok: true) }.to raise_exception(FastPrometheusClient::InvalidLabelSet)
+    end
   end
 
   describe "#values" do
