@@ -12,7 +12,7 @@ module FastPrometheusClient
       private_constant :CUMULATIVE
 
       def initialize(resource_attributes: {}, start_time: Time.now)
-        @resource_attributes = resource_attributes
+        @resource_attributes = resource_attributes.map { |k, v| kv(k, v) }
         @start_time_unix_nano = (start_time.to_f * 1_000_000_000).to_i
       end
 
@@ -21,7 +21,7 @@ module FastPrometheusClient
           resource_metrics: [
             Opentelemetry::Proto::Metrics::V1::ResourceMetrics.new(
               resource: Opentelemetry::Proto::Resource::V1::Resource.new(
-                attributes: @resource_attributes.map { |k, v| kv(k, v) }
+                attributes: @resource_attributes
               ),
               scope_metrics: [
                 Opentelemetry::Proto::Metrics::V1::ScopeMetrics.new(
@@ -127,11 +127,11 @@ module FastPrometheusClient
         # bounds = all boundaries except +Inf
         # counts = non-cumulative per-bucket counts + overflow
         bounds = []
-        counts = []
+        counts = Array.new(cumulative_buckets.size)
         prev = 0
 
-        cumulative_buckets.each do |boundary, cumulative|
-          counts << cumulative - prev
+        cumulative_buckets.each_with_index do |(boundary, cumulative), i|
+          counts[i] = cumulative - prev
           prev = cumulative
           bounds << boundary unless boundary.infinite?
         end
@@ -170,17 +170,17 @@ module FastPrometheusClient
 
       # Convert sparse [[prom_idx, count], ...] to OTLP Buckets{offset, bucket_counts}.
       # OTLP index = prom index - 1. Offset = min OTLP index.
+      # Buckets are always sorted (from NativeHistogram::Slot#positive_buckets / #negative_buckets).
       def dense_buckets(buckets)
         return Opentelemetry::Proto::Metrics::V1::ExponentialHistogramDataPoint::Buckets.new if buckets.empty?
 
-        otlp_indices = buckets.map { |idx, _| idx - 1 }
-        offset = otlp_indices.min
-        length = otlp_indices.max - offset + 1
+        first_idx, = buckets.first
+        last_idx, = buckets.last
+        offset = first_idx - 1
+        length = last_idx - offset
 
         counts = Array.new(length, 0)
-        buckets.each do |prom_idx, count|
-          counts[prom_idx - 1 - offset] = count
-        end
+        buckets.each { |prom_idx, count| counts[prom_idx - offset - 1] = count }
 
         Opentelemetry::Proto::Metrics::V1::ExponentialHistogramDataPoint::Buckets.new(
           offset: offset,
