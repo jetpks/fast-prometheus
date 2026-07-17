@@ -21,7 +21,7 @@ module FastPrometheusClient
         response = super
         record(request.method, response.status.to_s, start)
         response
-      rescue StandardError => _e
+      rescue StandardError
         record(request.method, "500", start)
         raise
       end
@@ -36,12 +36,12 @@ module FastPrometheusClient
       end
 
       def ensure_counter
-        name = "#{@prefix}_requests_total"
+        name = :"#{@prefix}_requests_total"
         @registry.get(name) || @registry.counter(name, docstring: "Total HTTP requests", labels: %i[method status])
       end
 
       def ensure_histogram
-        name = "#{@prefix}_request_duration_seconds"
+        name = :"#{@prefix}_request_duration_seconds"
         existing = @registry.get(name)
         return existing if existing
 

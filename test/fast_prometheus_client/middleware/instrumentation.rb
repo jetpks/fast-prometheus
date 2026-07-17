@@ -21,10 +21,10 @@ describe FastPrometheusClient::Middleware::Instrumentation do
       response.read
       response.close
 
-      counter = registry.get("http_server_requests_total")
+      counter = registry.get(:http_server_requests_total)
       expect(counter.get(labels: { method: "GET", status: "200" })).to be(:==, 1.0)
 
-      histogram = registry.get("http_server_request_duration_seconds")
+      histogram = registry.get(:http_server_request_duration_seconds)
       expect(histogram.count(labels: { method: "GET", status: "200" })).to be(:==, 1)
       expect(histogram.sum(labels: { method: "GET", status: "200" })).to be(:>, 0.0)
     end
@@ -43,7 +43,7 @@ describe FastPrometheusClient::Middleware::Instrumentation do
       response.read
       response.close
 
-      metric = registry.get("http_server_request_duration_seconds")
+      metric = registry.get(:http_server_request_duration_seconds)
       expect(metric).to be(:instance_of?, FastPrometheusClient::NativeHistogram)
     end
   end
@@ -66,7 +66,7 @@ describe FastPrometheusClient::Middleware::Instrumentation do
       end
       expect(raised).to be(:==, true)
 
-      counter = registry.get("http_server_requests_total")
+      counter = registry.get(:http_server_requests_total)
       expect(counter.get(labels: { method: "GET", status: "500" })).to be(:==, 1.0)
     end
   end
