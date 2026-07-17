@@ -28,7 +28,8 @@ module FastPrometheusClient
     end
 
     def get(labels: {})
-      store[resolve(labels)]
+      key = resolve(labels)
+      store[key]
     end
 
     protected
