@@ -26,44 +26,36 @@ module FastPrometheusClient
     end
 
     def self.build_series(metric)
-      case metric.type
+      metric.values.map do |labels, value|
+        Series.new(
+          labels: labels.dup.freeze,
+          value: build_value(metric.type, value)
+        )
+      end
+    end
+
+    private_class_method def self.build_value(type, value)
+      case type
       when :counter, :gauge
-        metric.values.map do |labels, value|
-          Series.new(labels: labels.dup.freeze, value: value)
-        end
+        value
       when :histogram
-        metric.values.map do |labels, slot|
-          Series.new(
-            labels: labels.dup.freeze,
-            value: HistogramValue.new(
-              sum: slot.sum,
-              count: slot.count,
-              cumulative_buckets: slot.cumulative_buckets.map { |pair| pair.dup.freeze }.freeze
-            )
-          )
-        end
+        HistogramValue.new(
+          sum: value.sum,
+          count: value.count,
+          cumulative_buckets: value.cumulative_buckets.map { |pair| pair.dup.freeze }.freeze
+        )
       when :summary
-        metric.values.map do |labels, value|
-          Series.new(
-            labels: labels.dup.freeze,
-            value: SummaryValue.new(sum: value.sum, count: value.count)
-          )
-        end
+        SummaryValue.new(sum: value.sum, count: value.count)
       when :native_histogram
-        metric.values.map do |labels, slot|
-          Series.new(
-            labels: labels.dup.freeze,
-            value: NativeHistogramValue.new(
-              schema: slot.schema,
-              zero_threshold: slot.zero_threshold,
-              zero_count: slot.zero_count,
-              sum: slot.sum,
-              count: slot.count,
-              positive_buckets: slot.positive_buckets.map { |pair| pair.dup.freeze }.freeze,
-              negative_buckets: slot.negative_buckets.map { |pair| pair.dup.freeze }.freeze
-            )
-          )
-        end
+        NativeHistogramValue.new(
+          schema: value.schema,
+          zero_threshold: value.zero_threshold,
+          zero_count: value.zero_count,
+          sum: value.sum,
+          count: value.count,
+          positive_buckets: value.positive_buckets.map { |pair| pair.dup.freeze }.freeze,
+          negative_buckets: value.negative_buckets.map { |pair| pair.dup.freeze }.freeze
+        )
       end
     end
   end
