@@ -49,6 +49,10 @@ describe FastPrometheusClient::Gauge do
       gauge.increment(by: -3)
       expect(gauge.get).to be(:==, 7.0)
     end
+
+    it "raises ArgumentError for non-numeric by" do
+      expect { gauge.increment(by: "x") }.to raise_exception(ArgumentError)
+    end
   end
 
   describe "#decrement" do
@@ -68,6 +72,10 @@ describe FastPrometheusClient::Gauge do
       gauge.set(10)
       gauge.decrement(by: -3)
       expect(gauge.get).to be(:==, 13.0)
+    end
+
+    it "raises ArgumentError for non-numeric by" do
+      expect { gauge.decrement(by: nil) }.to raise_exception(ArgumentError)
     end
   end
 

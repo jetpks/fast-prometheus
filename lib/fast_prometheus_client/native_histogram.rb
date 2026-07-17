@@ -35,6 +35,9 @@ module FastPrometheusClient
       end
     end
 
+    # client_golang math.MaxInt32 convention for clamped ±Inf bucket index.
+    MAX_BUCKET_INDEX = (2**31) - 1
+
     attr_reader :schema, :zero_threshold, :max_buckets
 
     # rubocop: disable Layout/LineLength
@@ -59,23 +62,42 @@ module FastPrometheusClient
       :native_histogram
     end
 
-    # Record an observation.
+    # Record an observation. Never raises — NaN/±Inf are handled gracefully.
     def observe(value, labels: {})
       v = value.to_f
       key = resolve(labels)
 
       slot = store[key] ||= Slot.new(schema: @schema, zero_threshold: @zero_threshold)
 
+      # Determine bucket placement BEFORE mutating count/sum (no partial mutation).
+      if v.nan?
+        # NaN: count/sum only, no bucket.
+        side = nil
+        idx = nil
+      elsif v.infinite?
+        # ±Inf: clamp to MAX_BUCKET_INDEX.
+        side = v.positive? ? :positive : :negative
+        idx = MAX_BUCKET_INDEX
+      elsif v.abs <= slot.zero_threshold
+        side = :zero
+        idx = nil
+      elsif v.positive?
+        side = :positive
+        idx = index_for(v, slot.schema)
+      else
+        side = :negative
+        idx = index_for(-v, slot.schema)
+      end
+
       slot.sum += v
       slot.count += 1
 
-      if v.abs <= slot.zero_threshold
+      case side
+      when :zero
         slot.zero_count += 1
-      elsif v > slot.zero_threshold
-        idx = index_for(v, slot.schema)
+      when :positive
         slot.positive[idx] = (slot.positive[idx] || 0) + 1
-      else
-        idx = index_for(-v, slot.schema)
+      when :negative
         slot.negative[idx] = (slot.negative[idx] || 0) + 1
       end
 

@@ -69,10 +69,10 @@ describe FastPrometheusClient::Snapshot do
     describe "summary series" do
       let(:metric) { snapshot.metrics.find { |m| m.name == :size } }
 
-      it "has SnapshotSummaryValue with correct fields" do
+      it "has SummaryValue with correct fields" do
         expect(metric.type).to be(:==, :summary)
         series = metric.series.first
-        expect(series.value).to be_a(FastPrometheusClient::SnapshotSummaryValue)
+        expect(series.value).to be_a(FastPrometheusClient::SummaryValue)
         expect(series.value.sum).to be(:==, 300.0)
         expect(series.value.count).to be(:==, 2)
       end
@@ -120,6 +120,15 @@ describe FastPrometheusClient::Snapshot do
         ndur = snapshot.metrics.find { |m| m.name == :ndur }
         expect(ndur.series.first.value.positive_buckets.frozen?).to be(:==, true)
         expect(ndur.series.first.value.negative_buckets.frozen?).to be(:==, true)
+      end
+
+      it "nested inner pairs are also frozen" do
+        dur = snapshot.metrics.find { |m| m.name == :dur }
+        expect(dur.series.first.value.cumulative_buckets.first.frozen?).to be(:==, true)
+
+        ndur = snapshot.metrics.find { |m| m.name == :ndur }
+        expect(ndur.series.first.value.positive_buckets.first.frozen?).to be(:==, true)
+        expect(ndur.series.first.value.negative_buckets.first.frozen?).to be(:==, true)
       end
     end
   end

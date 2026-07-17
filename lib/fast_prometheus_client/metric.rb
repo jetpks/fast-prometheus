@@ -38,7 +38,7 @@ module FastPrometheusClient
     end
 
     def with_labels(**labels)
-      validate_with_labels(labels)
+      validate_label_keys(labels)
       merged = @preset_labels.merge(labels.transform_values { |v| v.to_s.freeze })
       self.class.new(
         @name,
@@ -57,7 +57,7 @@ module FastPrometheusClient
     def resolve(labels)
       return @resolved_key if @resolved_key && labels.empty?
 
-      validate_resolve_labels(labels)
+      validate_label_keys(labels)
       merged = @preset_labels.merge(labels.transform_values(&:to_s))
       validate_resolve_completeness(merged)
       resolve_internal(merged)
@@ -96,13 +96,7 @@ module FastPrometheusClient
       end
     end
 
-    def validate_with_labels(labels)
-      labels.each_key do |key|
-        raise InvalidLabelSet, "unknown label name: #{key.inspect}" unless @label_names.include?(key)
-      end
-    end
-
-    def validate_resolve_labels(labels)
+    def validate_label_keys(labels)
       labels.each_key do |key|
         raise InvalidLabelSet, "unknown label name: #{key.inspect}" unless @label_names.include?(key)
       end
