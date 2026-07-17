@@ -8,7 +8,7 @@ module FastPrometheusClient
   class Summary < Metric
     # Value holds the accumulated sum and count for a single label set.
     class Value
-      attr_reader :sum, :count
+      attr_accessor :sum, :count
 
       def initialize
         @sum = 0.0
@@ -22,10 +22,9 @@ module FastPrometheusClient
 
     def observe(value, labels: {})
       key = resolve(labels)
-      slot = store[key] || Value.new
-      slot.instance_variable_set(:@sum, slot.sum + value)
-      slot.instance_variable_set(:@count, slot.count + 1)
-      store[key] = slot
+      slot = store[key] ||= Value.new
+      slot.sum += value
+      slot.count += 1
     end
 
     def get(labels: {})
