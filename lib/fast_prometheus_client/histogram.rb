@@ -21,7 +21,7 @@ module FastPrometheusClient
         @buckets = buckets
         @sum = sum
         @count = count
-        @cells = (buckets.size + 1).times.map { 0 }
+        @cells = [0] * (buckets.size + 1)
       end
 
       # Cumulative bucket counts, ending with [Float::INFINITY, count].
@@ -33,7 +33,6 @@ module FastPrometheusClient
         end
         cumulative += @cells.last # overflow cell
         result << [Float::INFINITY, cumulative]
-        result
       end
     end
 
@@ -69,9 +68,7 @@ module FastPrometheusClient
 
     # Cumulative bucket counts for a specific series (delegates to slot).
     def cumulative_buckets(labels: {})
-      slot = get(labels: labels)
-
-      return nil unless slot
+      return unless (slot = get(labels: labels))
 
       slot.cumulative_buckets
     end
@@ -84,18 +81,14 @@ module FastPrometheusClient
 
     # Reader for sum of a specific series.
     def sum(labels: {})
-      slot = get(labels: labels)
-
-      return nil unless slot
+      return unless (slot = get(labels: labels))
 
       slot.sum
     end
 
     # Reader for count of a specific series.
     def count(labels: {})
-      slot = get(labels: labels)
-
-      return nil unless slot
+      return unless (slot = get(labels: labels))
 
       slot.count
     end
