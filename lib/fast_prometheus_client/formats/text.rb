@@ -14,27 +14,27 @@ module FastPrometheusClient
       LABEL_REPLACE = { "\\" => "\\\\", '"' => '\\"', "\n" => "\\n" }.freeze
 
       def self.render(snapshot)
-        output = String.new
-
-        snapshot.metrics.each do |metric|
+        snapshot.metrics.each_with_object(String.new) do |metric, output|
           next if metric.type == :native_histogram
 
           output << "# HELP #{metric.name} #{escape_doc(metric.docstring)}\n"
           output << "# TYPE #{metric.name} #{metric.type}\n"
 
           metric.series.each do |series|
-            case metric.type
-            when :counter, :gauge
-              metric_line(output, metric.name, series.labels, series.value)
-            when :histogram
-              histogram_lines(output, metric.name, series.labels, series.value)
-            when :summary
-              summary_lines(output, metric.name, series.labels, series.value)
-            end
+            render_series(output, metric.type, metric.name, series)
           end
         end
+      end
 
-        output
+      private_class_method def self.render_series(output, type, name, series)
+        case type
+        when :counter, :gauge
+          metric_line(output, name, series.labels, series.value)
+        when :histogram
+          histogram_lines(output, name, series.labels, series.value)
+        when :summary
+          summary_lines(output, name, series.labels, series.value)
+        end
       end
 
       def self.escape_doc(string)
