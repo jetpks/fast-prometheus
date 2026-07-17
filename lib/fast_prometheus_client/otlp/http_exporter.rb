@@ -12,7 +12,10 @@ module FastPrometheusClient
         @url = "#{endpoint}/v1/metrics"
         @headers = [["content-type", "application/x-protobuf"]].concat(
           headers.map { |k, v| [k.to_s, v.to_s] }
-        )
+        ).tap do |a|
+          a.freeze
+          a.each(&:freeze)
+        end
         @mapper = Mapper.new(resource_attributes: resource_attributes)
         @internet = Async::HTTP::Internet.new
       end

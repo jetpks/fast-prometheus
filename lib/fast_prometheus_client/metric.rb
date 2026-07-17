@@ -69,10 +69,14 @@ module FastPrometheusClient
       validate_label_keys(labels)
 
       @label_names.map do |n|
-        value = labels[n] || @preset_labels[n]
-        raise InvalidLabelSet, "missing labels: #{n.inspect}" unless value
+        if labels.key?(n)
+          labels[n].to_s
+        else
+          value = @preset_labels[n]
+          raise InvalidLabelSet, "missing labels: #{n.inspect}" unless value
 
-        value.to_s
+          value
+        end
       end.freeze
     end
 
