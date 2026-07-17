@@ -17,6 +17,7 @@ module FastPrometheusClient
     end
 
     def increment(by: 1, labels: {})
+      raise ArgumentError, "by must be a numeric" unless by.is_a?(Numeric)
       return if by.zero?
 
       key = resolve(labels)
@@ -24,6 +25,7 @@ module FastPrometheusClient
     end
 
     def decrement(by: 1, labels: {})
+      raise ArgumentError, "by must be a numeric" unless by.is_a?(Numeric)
       return if by.zero?
 
       key = resolve(labels)

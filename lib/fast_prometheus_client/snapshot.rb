@@ -10,11 +10,7 @@ module FastPrometheusClient
 
   Series = Data.define(:labels, :value)
 
-  # DISAGREEMENT: FastPrometheusClient::SummaryValue is already defined in
-  # summary.rb as a mutable storage class (no-arg initialize). Defining a
-  # Data type with the same name here would overwrite it and break the
-  # Summary metric. Using SnapshotSummaryValue as a workaround.
-  SnapshotSummaryValue = Data.define(:sum, :count)
+  SummaryValue = Data.define(:sum, :count)
 
   MetricSnapshot = Data.define(:name, :docstring, :type, :label_names, :series) do
     # Build a MetricSnapshot from a live metric. Reads only public readers
@@ -42,7 +38,7 @@ module FastPrometheusClient
             value: HistogramValue.new(
               sum: slot.sum,
               count: slot.count,
-              cumulative_buckets: slot.cumulative_buckets.map(&:dup).freeze
+              cumulative_buckets: slot.cumulative_buckets.map { |pair| pair.dup.freeze }.freeze
             )
           )
         end
@@ -50,7 +46,7 @@ module FastPrometheusClient
         metric.values.map do |labels, value|
           Series.new(
             labels: labels.dup.freeze,
-            value: SnapshotSummaryValue.new(sum: value.sum, count: value.count)
+            value: SummaryValue.new(sum: value.sum, count: value.count)
           )
         end
       when :native_histogram
@@ -63,8 +59,8 @@ module FastPrometheusClient
               zero_count: slot.zero_count,
               sum: slot.sum,
               count: slot.count,
-              positive_buckets: slot.positive_buckets.map(&:dup).freeze,
-              negative_buckets: slot.negative_buckets.map(&:dup).freeze
+              positive_buckets: slot.positive_buckets.map { |pair| pair.dup.freeze }.freeze,
+              negative_buckets: slot.negative_buckets.map { |pair| pair.dup.freeze }.freeze
             )
           )
         end

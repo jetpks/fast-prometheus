@@ -99,6 +99,54 @@ describe FastPrometheusClient::NativeHistogram do
       slot = nh.get
       expect(slot.sum).to be(:==, 4.0)
     end
+
+    it "NaN: count and sum updated, no bucket, no zero_count" do
+      nh = FastPrometheusClient::NativeHistogram.new(:t, docstring: "t")
+      nh.observe(Float::NAN)
+      slot = nh.get
+      expect(slot.count).to be(:==, 1)
+      expect(slot.sum.nan?).to be(:==, true)
+      expect(slot.zero_count).to be(:==, 0)
+      expect(slot.positive_buckets).to be(:==, [])
+      expect(slot.negative_buckets).to be(:==, [])
+    end
+
+    it "+Inf: count/sum updated, positive bucket at MAX_BUCKET_INDEX" do
+      nh = FastPrometheusClient::NativeHistogram.new(:t, docstring: "t")
+      nh.observe(Float::INFINITY)
+      slot = nh.get
+      expect(slot.count).to be(:==, 1)
+      expect(slot.sum).to be(:==, Float::INFINITY)
+      expect(slot.positive_buckets).to be(:==, [[FastPrometheusClient::NativeHistogram::MAX_BUCKET_INDEX, 1]])
+      expect(slot.negative_buckets).to be(:==, [])
+    end
+
+    it "-Inf: count/sum updated, negative bucket at MAX_BUCKET_INDEX" do
+      nh = FastPrometheusClient::NativeHistogram.new(:t, docstring: "t")
+      nh.observe(-Float::INFINITY)
+      slot = nh.get
+      expect(slot.count).to be(:==, 1)
+      expect(slot.sum).to be(:==, -Float::INFINITY)
+      expect(slot.positive_buckets).to be(:==, [])
+      expect(slot.negative_buckets).to be(:==, [[FastPrometheusClient::NativeHistogram::MAX_BUCKET_INDEX, 1]])
+    end
+
+    it "NaN/±Inf never raise" do
+      nh = FastPrometheusClient::NativeHistogram.new(:t, docstring: "t")
+      expect { nh.observe(Float::NAN) }.not.to raise_exception
+      expect { nh.observe(Float::INFINITY) }.not.to raise_exception
+      expect { nh.observe(-Float::INFINITY) }.not.to raise_exception
+    end
+
+    it "finite values after NaN still work" do
+      nh = FastPrometheusClient::NativeHistogram.new(:t, docstring: "t")
+      nh.observe(Float::NAN)
+      nh.observe(1.0)
+      slot = nh.get
+      expect(slot.count).to be(:==, 2)
+      expect(slot.sum.nan?).to be(:==, true)
+      expect(slot.positive_buckets).to be(:==, [[0, 1]])
+    end
   end
 
   describe "downscale" do
