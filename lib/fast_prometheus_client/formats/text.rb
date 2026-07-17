@@ -14,65 +14,72 @@ module FastPrometheusClient
       LABEL_REPLACE = { "\\" => "\\\\", '"' => '\\"', "\n" => "\\n" }.freeze
 
       def self.render(snapshot)
-        parts = []
+        output = String.new
 
         snapshot.metrics.each do |metric|
           next if metric.type == :native_histogram
 
-          parts << "# HELP #{metric.name} #{escape_doc(metric.docstring)}"
-          parts << "# TYPE #{metric.name} #{metric.type}"
+          output << "# HELP #{metric.name} #{escape_doc(metric.docstring)}\n"
+          output << "# TYPE #{metric.name} #{metric.type}\n"
 
           metric.series.each do |series|
             case metric.type
             when :counter, :gauge
-              parts << metric_line(metric.name, series.labels, series.value)
+              metric_line(output, metric.name, series.labels, series.value)
             when :histogram
-              histogram_lines(metric.name, series.labels, series.value, parts)
+              histogram_lines(output, metric.name, series.labels, series.value)
             when :summary
-              summary_lines(metric.name, series.labels, series.value, parts)
+              summary_lines(output, metric.name, series.labels, series.value)
             end
           end
         end
 
-        "#{parts.join("\n")}\n"
+        output
       end
 
       def self.escape_doc(string)
+        return string unless DOC_ESCAPE.match?(string)
+
         string.gsub(DOC_ESCAPE, DOC_REPLACE)
       end
 
       def self.escape_label(string)
-        string.to_s.gsub(LABEL_ESCAPE, LABEL_REPLACE)
+        string = string.to_s
+        return string unless LABEL_ESCAPE.match?(string)
+
+        string.gsub(LABEL_ESCAPE, LABEL_REPLACE)
       end
 
       def self.format_labels(labels)
         return "" if labels.empty?
 
-        strings = labels.map do |key, value|
-          "#{key}=\"#{escape_label(value)}\""
+        output = String.new("{")
+        labels.each do |key, value|
+          output << "#{key}=\"#{escape_label(value)}\""
+          output << ","
         end
-
-        "{#{strings.join(',')}}"
+        output.chop!
+        output << "}"
+        output
       end
 
-      def self.metric_line(name, labels, value)
-        "#{name}#{format_labels(labels)} #{value}"
+      def self.metric_line(output, name, labels, value)
+        output << "#{name}#{format_labels(labels)} #{value}\n"
       end
 
-      def self.histogram_lines(name, labels, value, parts)
+      def self.histogram_lines(output, name, labels, value)
         value.cumulative_buckets.each do |boundary, count|
           le = boundary.infinite? ? "+Inf" : boundary.to_s
-          merged = labels.merge("le" => le)
-          parts << metric_line("#{name}_bucket", merged, count)
+          metric_line(output, "#{name}_bucket", labels.merge("le" => le), count)
         end
 
-        parts << metric_line("#{name}_sum", labels, value.sum)
-        parts << metric_line("#{name}_count", labels, value.count)
+        metric_line(output, "#{name}_sum", labels, value.sum)
+        metric_line(output, "#{name}_count", labels, value.count)
       end
 
-      def self.summary_lines(name, labels, value, parts)
-        parts << metric_line("#{name}_sum", labels, value.sum)
-        parts << metric_line("#{name}_count", labels, value.count)
+      def self.summary_lines(output, name, labels, value)
+        metric_line(output, "#{name}_sum", labels, value.sum)
+        metric_line(output, "#{name}_count", labels, value.count)
       end
     end
   end
