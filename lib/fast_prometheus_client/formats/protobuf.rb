@@ -17,7 +17,9 @@ module FastPrometheusClient
       private_constant :TYPE_MAP
 
       def self.render(snapshot)
-        snapshot.metrics.map { |ms| encode_frame(build_metric_family(ms)) }.join
+        snapshot.metrics.each_with_object(String.new) do |ms, buffer|
+          buffer << encode_frame(build_metric_family(ms))
+        end
       end
 
       def self.build_metric_family(metric_snapshot)
@@ -99,7 +101,7 @@ module FastPrometheusClient
 
         spans = []
         deltas = []
-        span_offset = buckets[0][0]
+        span_offset = nil
         span_length = 0
         prev_index = nil
         prev_count = nil
@@ -109,13 +111,15 @@ module FastPrometheusClient
             span_offset = index
             span_length = 1
             deltas << count
-          elsif index == prev_index + 1
-            span_length += 1
-            deltas << count - prev_count
           else
-            spans << Io::Prometheus::Client::BucketSpan.new(offset: span_offset, length: span_length)
-            span_offset = index - prev_index - 1
-            span_length = 1
+            gap = index - prev_index
+            if gap == 1
+              span_length += 1
+            else
+              spans << Io::Prometheus::Client::BucketSpan.new(offset: span_offset, length: span_length)
+              span_offset = gap - 1
+              span_length = 1
+            end
             deltas << count - prev_count
           end
           prev_index = index
@@ -128,19 +132,19 @@ module FastPrometheusClient
 
       private_class_method def self.encode_frame(message)
         encoded = message.class.encode(message)
-        encode_varint(encoded.bytesize) + encoded
+        encode_varint(encoded.bytesize) << encoded
       end
 
       private_class_method def self.encode_varint(value)
-        bytes = []
+        buffer = String.new
         loop do
           byte = value & 0x7f
           value >>= 7
           byte |= 0x80 if value.positive?
-          bytes << byte
+          buffer << byte
           break if value.zero?
         end
-        bytes.pack("C*")
+        buffer
       end
     end
   end
