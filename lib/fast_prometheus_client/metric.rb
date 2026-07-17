@@ -14,7 +14,7 @@ module FastPrometheusClient
     METRIC_NAME = /\A[a-zA-Z_:][a-zA-Z0-9_:]*\z/
     LABEL_NAME = /\A[a-zA-Z_][a-zA-Z0-9_]*\z/
 
-    def initialize(name, docstring:, labels: [], preset_labels: {})
+    def initialize(name, docstring:, labels: [], preset_labels: {}, store: nil)
       validate_metric_name(name)
       validate_docstring(docstring)
       validate_label_names(labels)
@@ -24,7 +24,7 @@ module FastPrometheusClient
       @docstring = docstring
       @label_names = labels
       @preset_labels = preset_labels.transform_values { |v| v.to_s.freeze }
-      @store = {}
+      @store = store || {}
 
       return unless fully_bound?
 
@@ -44,8 +44,9 @@ module FastPrometheusClient
         @name,
         docstring: @docstring,
         labels: @label_names,
-        preset_labels: merged
-      ).tap { |m| m.instance_variable_set(:@store, @store) }
+        preset_labels: merged,
+        store: @store
+      )
     end
 
     def values
@@ -58,9 +59,13 @@ module FastPrometheusClient
       return @resolved_key if @resolved_key && labels.empty?
 
       validate_label_keys(labels)
-      merged = @preset_labels.merge(labels.transform_values(&:to_s))
-      validate_resolve_completeness(merged)
-      resolve_internal(merged)
+
+      @label_names.map do |n|
+        value = labels[n] || @preset_labels[n]
+        raise InvalidLabelSet, "missing labels: #{n.inspect}" unless value
+
+        value.to_s
+      end.freeze
     end
 
     private
@@ -90,9 +95,8 @@ module FastPrometheusClient
     end
 
     def validate_preset_labels(labels, preset_labels)
-      labels_set = labels.to_set
       preset_labels.each_key do |key|
-        raise InvalidLabelSet, "preset label not in declared labels: #{key.inspect}" unless labels_set.include?(key)
+        raise InvalidLabelSet, "preset label not in declared labels: #{key.inspect}" unless labels.include?(key)
       end
     end
 
@@ -100,13 +104,6 @@ module FastPrometheusClient
       labels.each_key do |key|
         raise InvalidLabelSet, "unknown label name: #{key.inspect}" unless @label_names.include?(key)
       end
-    end
-
-    def validate_resolve_completeness(merged)
-      missing = @label_names.reject { |n| merged.key?(n) }
-      return if missing.empty?
-
-      raise InvalidLabelSet, "missing labels: #{missing.inspect}"
     end
 
     def resolve_internal(merged)
