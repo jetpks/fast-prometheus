@@ -8,9 +8,11 @@ module FastPrometheusClient
     # Exports metrics over HTTP to an OTLP receiver (e.g. Prometheus --web.enable-otlp-receiver).
     class HTTPExporter
       def initialize(endpoint:, registry: FastPrometheusClient.registry, resource_attributes: {}, headers: {})
-        @endpoint = endpoint
         @registry = registry
-        @headers = headers
+        @url = "#{endpoint}/v1/metrics"
+        @headers = [["content-type", "application/x-protobuf"]].concat(
+          headers.map { |k, v| [k.to_s, v.to_s] }
+        )
         @mapper = Mapper.new(resource_attributes: resource_attributes)
         @internet = Async::HTTP::Internet.new
       end
@@ -19,11 +21,8 @@ module FastPrometheusClient
       # Raises Error on non-2xx responses.
       def export(snapshot = @registry.collect)
         request = @mapper.request(snapshot)
-        url = "#{@endpoint}/v1/metrics"
-        headers = [["content-type", "application/x-protobuf"]]
-        headers.concat(@headers.map { |k, v| [k.to_s, v.to_s] })
 
-        @internet.post(url, headers, request.to_proto) do |response|
+        @internet.post(@url, @headers, request.to_proto) do |response|
           body = response.read
           raise Error, "OTLP export failed: #{response.status} #{body}" unless (200..299).cover?(response.status)
         end

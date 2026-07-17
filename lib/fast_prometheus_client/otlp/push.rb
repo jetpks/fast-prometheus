@@ -21,7 +21,7 @@ module FastPrometheusClient
             sleep(@interval)
             @exporter.export
           rescue StandardError => e
-            Console.logger.warn("OTLP push error: #{e}")
+            Console.warn("OTLP push error: #{e}")
           end
         end
       end
