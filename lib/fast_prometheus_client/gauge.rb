@@ -31,10 +31,5 @@ module FastPrometheusClient
       key = resolve(labels)
       store[key] = (store[key] || 0.0) - by.to_f
     end
-
-    def get(labels: {})
-      key = resolve(labels)
-      store[key] || 0.0
-    end
   end
 end

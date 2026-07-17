@@ -33,6 +33,14 @@ module FastPrometheusClient
 
     attr_reader :name, :docstring, :label_names, :preset_labels, :store
 
+    # Returns the current value for the given label set.
+    # Scalar types (Counter, Gauge) return 0.0 for unobserved series.
+    # Slot-based types (Histogram, Summary, NativeHistogram) override to return nil.
+    def get(labels: {})
+      key = resolve(labels)
+      store[key] || 0.0
+    end
+
     def type
       raise NotImplementedError, "subclasses must implement #type"
     end
