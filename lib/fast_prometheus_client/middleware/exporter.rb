@@ -11,9 +11,6 @@ module FastPrometheusClient
     # Protocol::HTTP middleware that serves metrics at a configurable path.
     # Handles content negotiation (text vs protobuf) and gzip compression.
     class Exporter < Protocol::HTTP::Middleware
-      # Formats::Protobuf::CONTENT_TYPE is private_constant, so we define it here.
-      PROTOBUF_CONTENT_TYPE =
-        "application/vnd.google.protobuf; proto=io.prometheus.client.MetricFamily; encoding=delimited"
       PROTOBUF_ACCEPT = "application/vnd.google.protobuf"
 
       def initialize(delegate, registry: FastPrometheusClient.registry, path: "/metrics")
@@ -32,7 +29,7 @@ module FastPrometheusClient
         snapshot = @registry.collect
 
         if protobuf?(request)
-          content_type = PROTOBUF_CONTENT_TYPE
+          content_type = Formats::Protobuf::CONTENT_TYPE
           body = Formats::Protobuf.render(snapshot)
         else
           content_type = Formats::Text::CONTENT_TYPE

@@ -50,6 +50,25 @@ Dir.mktmpdir do |tmpdir|
   nh.observe(0.2)
   nh.observe(1.5)
 
+  # Labeled counter
+  labeled_counter = registry.counter(
+    :fpc_e2e_labeled_jobs_total,
+    docstring: "E2E labeled jobs total",
+    labels: %i[method]
+  )
+  labeled_counter.increment(by: 5, labels: { method: "GET" })
+  labeled_counter.increment(by: 2, labels: { method: "POST" })
+
+  # Labeled native histogram
+  labeled_nh = registry.native_histogram(
+    :fpc_e2e_labeled_duration_seconds,
+    docstring: "E2E labeled duration",
+    labels: %i[endpoint]
+  )
+  labeled_nh.observe(0.1, labels: { endpoint: "/api" })
+  labeled_nh.observe(0.3, labels: { endpoint: "/api" })
+  labeled_nh.observe(1.0, labels: { endpoint: "/health" })
+
   # Build middleware stack
   middleware = FastPrometheusClient::Middleware::Exporter.new(
     Protocol::HTTP::Middleware::NotFound,
@@ -107,8 +126,12 @@ Dir.mktmpdir do |tmpdir|
       query_url = "http://#{METRICS_HOST}:#{PROMETHEUS_PORT}/api/v1/query"
       counter_ok = false
       histogram_ok = false
+      labeled_counter_ok = false
+      labeled_histogram_ok = false
       last_counter_response = nil
       last_histogram_response = nil
+      last_labeled_counter_response = nil
+      last_labeled_histogram_response = nil
 
       Timeout.timeout(DEADLINE) do
         loop do
@@ -136,7 +159,32 @@ Dir.mktmpdir do |tmpdir|
             histogram_ok = true if data.dig("data", "result", 0, "value", 1).to_f >= 3
           end
 
-          break if counter_ok && histogram_ok
+          # Query labeled counter with label matcher
+          labeled_counter_resp = Timeout.timeout(5) do
+            uri = URI("#{query_url}?query=fpc_e2e_labeled_jobs_total%7Bmethod%3D%22GET%22%7D")
+            Net::HTTP.get_response(uri)
+          end
+          last_labeled_counter_response = labeled_counter_resp.body
+
+          if labeled_counter_resp.is_a?(Net::HTTPSuccess)
+            data = JSON.parse(labeled_counter_resp.body)
+            labeled_counter_ok = true if data.dig("data", "result", 0, "value", 1).to_f >= 5
+          end
+
+          # Query labeled native histogram with label matcher
+          labeled_histogram_query = "histogram_count%28fpc_e2e_labeled_duration_seconds%7Bendpoint%3D%22%2Fapi%22%7D%29"
+          labeled_histogram_resp = Timeout.timeout(5) do
+            uri = URI("#{query_url}?query=#{labeled_histogram_query}")
+            Net::HTTP.get_response(uri)
+          end
+          last_labeled_histogram_response = labeled_histogram_resp.body
+
+          if labeled_histogram_resp.is_a?(Net::HTTPSuccess)
+            data = JSON.parse(labeled_histogram_resp.body)
+            labeled_histogram_ok = true if data.dig("data", "result", 0, "value", 1).to_f >= 2
+          end
+
+          break if counter_ok && histogram_ok && labeled_counter_ok && labeled_histogram_ok
 
           sleep POLL_INTERVAL
         end
@@ -148,6 +196,15 @@ Dir.mktmpdir do |tmpdir|
         puts "ERROR: Queries did not return expected values"
         puts "Counter response: #{last_counter_response}"
         puts "Histogram response: #{last_histogram_response}"
+        exit 1
+      end
+
+      if labeled_counter_ok && labeled_histogram_ok
+        puts "E2E_LABELED_OK"
+      else
+        puts "ERROR: Labeled queries did not return expected values"
+        puts "Labeled counter response: #{last_labeled_counter_response}"
+        puts "Labeled histogram response: #{last_labeled_histogram_response}"
         exit 1
       end
 
