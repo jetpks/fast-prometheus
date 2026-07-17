@@ -21,13 +21,12 @@ module FastPrometheusClient
         request = @mapper.request(snapshot)
         url = "#{@endpoint}/v1/metrics"
         headers = [["content-type", "application/x-protobuf"]]
-        @headers.each { |k, v| headers << [k.to_s, v.to_s] }
+        headers.concat(@headers.map { |k, v| [k.to_s, v.to_s] })
 
-        response = @internet.post(url, headers, request.to_proto)
-        body = response.read
-        response.close
-
-        raise Error, "OTLP export failed: #{response.status} #{body}" unless (200..299).cover?(response.status)
+        @internet.post(url, headers, request.to_proto) do |response|
+          body = response.read
+          raise Error, "OTLP export failed: #{response.status} #{body}" unless (200..299).cover?(response.status)
+        end
       end
 
       # Close the underlying HTTP client.

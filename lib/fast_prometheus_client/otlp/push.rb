@@ -18,7 +18,7 @@ module FastPrometheusClient
         @task = parent.async do |task|
           task.annotate("OTLP push loop")
           loop do
-            task.sleep(@interval)
+            sleep(@interval)
             @exporter.export
           rescue StandardError => e
             Console.logger.warn("OTLP push error: #{e}")
