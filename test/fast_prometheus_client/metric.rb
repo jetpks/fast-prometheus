@@ -103,6 +103,13 @@ describe FastPrometheusClient::Metric do
     end
   end
 
+  describe "#store" do
+    it "is not part of the public interface" do
+      metric = TestMetric.new(:test, docstring: "help")
+      expect(metric.respond_to?(:store)).to be(:==, false)
+    end
+  end
+
   describe "#values" do
     it "returns label-hash keyed data" do
       metric = TestMetric.new(:test, docstring: "help", labels: [:method])

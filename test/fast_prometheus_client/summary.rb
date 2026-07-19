@@ -46,6 +46,17 @@ describe FastPrometheusClient::Summary do
     end
   end
 
+  describe "#with_labels" do
+    it "binds an observe that accumulates sum/count on the parent" do
+      summary = FastPrometheusClient::Summary.new(:t, docstring: "t", labels: [:method])
+      bound = summary.with_labels(method: "get")
+      bound.observe(2.0)
+      value = summary.get(labels: { method: "get" })
+      expect(value.sum).to be(:==, 2.0)
+      expect(value.count).to be(:==, 1)
+    end
+  end
+
   describe "fiber-safety" do
     include Sus::Fixtures::Async::ReactorContext
 

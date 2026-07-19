@@ -38,7 +38,7 @@ module FastPrometheusClient
 
     attr_reader :buckets
 
-    def initialize(name, docstring:, labels: [], preset_labels: {}, buckets: DEFAULT_BUCKETS)
+    def initialize(name, docstring:, labels: [], preset_labels: {}, buckets: DEFAULT_BUCKETS, store: nil)
       raise ArgumentError, "buckets must be a non-empty Array" unless buckets.is_a?(Array) && !buckets.empty?
       raise ArgumentError, "buckets must contain only Numeric values" unless buckets.all? { |b| b.is_a?(Numeric) }
       raise ArgumentError, "buckets must be strictly ascending" unless buckets.each_cons(2).all? { |a, b| a < b }
@@ -46,7 +46,7 @@ module FastPrometheusClient
       raise InvalidLabelName, "label :le is reserved" if labels.include?(:le)
 
       @buckets = buckets
-      super(name, docstring: docstring, labels: labels, preset_labels: preset_labels)
+      super(name, docstring: docstring, labels: labels, preset_labels: preset_labels, store: store)
     end
 
     def type
@@ -103,6 +103,12 @@ module FastPrometheusClient
       raise ArgumentError, "count must be >= 1" unless count >= 1
 
       count.times.map { |i| start.to_f * (factor**i) }
+    end
+
+    protected
+
+    def construction_options
+      { buckets: @buckets }
     end
   end
 end

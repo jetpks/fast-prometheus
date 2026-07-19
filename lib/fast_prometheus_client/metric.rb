@@ -31,7 +31,7 @@ module FastPrometheusClient
       @resolved_key = resolve_internal(@preset_labels)
     end
 
-    attr_reader :name, :docstring, :label_names, :preset_labels, :store
+    attr_reader :name, :docstring, :label_names, :preset_labels
 
     # Returns the current value for the given label set.
     # Scalar types (Counter, Gauge) return 0.0 for unobserved series.
@@ -53,7 +53,8 @@ module FastPrometheusClient
         docstring: @docstring,
         labels: @label_names,
         preset_labels: merged,
-        store: @store
+        store: @store,
+        **construction_options
       )
     end
 
@@ -62,6 +63,14 @@ module FastPrometheusClient
     end
 
     protected
+
+    attr_reader :store
+
+    # Subclasses override to forward their own configuration (e.g. buckets,
+    # schema) through #with_labels. See Histogram, NativeHistogram.
+    def construction_options
+      {}
+    end
 
     def resolve(labels)
       return @resolved_key if @resolved_key && labels.empty?
