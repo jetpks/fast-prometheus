@@ -1,0 +1,59 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  release:
+    name: Build and publish gem
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # create the GitHub release
+      id-token: write # OIDC token for RubyGems trusted publishing
+    env:
+      # Prerelease tags (e.g. v0.1.0.pre.1) must not be published to RubyGems
+      # and must not be marked "latest" on GitHub.
+      IS_PRERELEASE: ${{ contains(github.ref_name, '.rc') || contains(github.ref_name, '.beta') || contains(github.ref_name, '.alpha') || contains(github.ref_name, '.pre') || contains(github.ref_name, '-') }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@v4
+
+      - name: Build gem
+        run: |
+          gem build fast-prometheus.gemspec
+          mkdir -p pkg/
+          mv *.gem pkg/
+
+      # Trusted publishing: no API token. Auth is a short-lived OIDC
+      # credential minted at run time, scoped to this repo + workflow.
+      # Requires a (pending) trusted publisher configured on rubygems.org.
+      # Skipped for prerelease tags: this repo is private and the
+      # pre-release is consumed via a git tag dependency, not RubyGems.
+      - name: Configure RubyGems credentials
+        if: ${{ !fromJSON(env.IS_PRERELEASE) }}
+        uses: rubygems/configure-rubygems-credentials@v2.1.0
+
+      - name: Publish to RubyGems
+        if: ${{ !fromJSON(env.IS_PRERELEASE) }}
+        run: gem push pkg/fast-prometheus-*.gem
+
+      - name: Smoke-test the published gem
+        if: ${{ !fromJSON(env.IS_PRERELEASE) }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          for attempt in 1 2 3 4 5; do
+            gem install fast-prometheus --version "$version" && break
+            echo "not indexed yet (attempt $attempt) — retrying in 15s"
+            sleep 15
+          done
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v3
+        with:
+          files: pkg/*.gem
+          generate_release_notes: true
+          prerelease: ${{ env.IS_PRERELEASE }}

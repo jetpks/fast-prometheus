@@ -16,10 +16,15 @@ Gem::Specification.new do |spec|
 
   spec.files = Dir.glob(["{lib}/**/*", "*.md"], File::FNM_DOTMATCH, base: __dir__)
 
+  spec.metadata["homepage_uri"] = spec.homepage
+  spec.metadata["source_code_uri"] = "https://github.com/jetpks/fast-prometheus"
+  spec.metadata["changelog_uri"] = "https://github.com/jetpks/fast-prometheus/blob/main/CHANGELOG.md"
+  spec.metadata["rubygems_mfa_required"] = "true"
+
   spec.add_dependency "async", ">= 2.38"
   spec.add_dependency "protocol-http", "~> 0.60"
-  spec.add_dependency "async-http"
-  spec.add_dependency "async-grpc"
-  spec.add_dependency "google-protobuf"
-  spec.add_dependency "console"
+  spec.add_dependency "async-http", "~> 0.95"
+  spec.add_dependency "async-grpc", "~> 0.7"
+  spec.add_dependency "google-protobuf", "~> 4.35"
+  spec.add_dependency "console", "~> 1.37"
 end
