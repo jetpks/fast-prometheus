@@ -1,0 +1,7 @@
+vendor/
+gems.locked
+.bundle/
+pkg/
+*.gem
+coverage/
+.DS_Store

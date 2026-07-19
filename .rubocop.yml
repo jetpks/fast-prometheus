@@ -1,0 +1,24 @@
+AllCops:
+  TargetRubyVersion: 3.4
+  NewCops: disable
+  SuggestExtensions: false
+  Exclude:
+    - lib/fast_prometheus_client/formats/metrics_pb.rb
+    - lib/fast_prometheus_client/otlp/pb/**/*
+    - vendor/**/*
+Layout/LineLength:
+  Max: 120
+Style/Documentation:
+  Enabled: false
+Metrics:
+  Enabled: false
+Style/StringLiterals:
+  EnforcedStyle: double_quotes
+Bundler/GemFilename:
+  Enabled: false
+Gemspec/OrderedDependencies:
+  Enabled: false
+Bundler/OrderedGems:
+  Enabled: false
+Style/MixinUsage:
+  Enabled: false
