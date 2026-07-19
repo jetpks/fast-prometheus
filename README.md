@@ -1,4 +1,4 @@
-# fast-prometheus-client
+# fast-prometheus
 
 A fiber-native Prometheus client for modern Ruby. Built on the socketry/async
 ecosystem: zero-lock hot path under cooperative scheduling, native histograms
@@ -11,26 +11,49 @@ for supported surface.
 ## Installation
 
 ```bash
-gem install fast-prometheus-client
+gem install fast-prometheus
 ```
 
 Or add to your `Gemfile`:
 
 ```ruby
-gem "fast-prometheus-client"
+gem "fast-prometheus"
 ```
+
+`require "fast/prometheus"` loads only the core (metrics, registry,
+snapshot) — zero IO dependencies. Scrape formats, HTTP middleware, and OTLP
+export are opt-in surfaces that each pull their own dependencies (and require
+the core themselves, so they're independently requirable):
+
+| Require path                              | Pulls in                          |
+|--------------------------------------------|------------------------------------|
+| `fast/prometheus`                          | core only — no IO deps             |
+| `fast/prometheus/formats/text`              | core                                |
+| `fast/prometheus/formats/protobuf`          | core, google-protobuf              |
+| `fast/prometheus/middleware/exporter`       | core, protocol-http, both formats  |
+| `fast/prometheus/middleware/instrumentation`| core, protocol-http                |
+| `fast/prometheus/otlp/mapper`               | core, vendored OTLP protos          |
+| `fast/prometheus/otlp/http_exporter`        | core, async-http                    |
+| `fast/prometheus/otlp/grpc_exporter`        | core, async-http, async-grpc        |
+| `fast/prometheus/otlp/push`                 | core, async, console                |
+| `fast/prometheus/otlp/service_interface`    | core, protocol-grpc                 |
+
+The vendored `Opentelemetry::Proto` descriptors under `fast/prometheus/otlp/pb`
+may conflict with the `opentelemetry-proto` gem if both are loaded in the same
+process (duplicate protobuf descriptor registration). This only affects
+processes that opt into OTLP export.
 
 ## Usage
 
 ### Registry
 
 ```ruby
-require "fast_prometheus_client"
+require "fast/prometheus"
 
-registry = FastPrometheusClient::Registry.new
+registry = Fast::Prometheus::Registry.new
 
 # Or use the module-level default:
-registry = FastPrometheusClient.registry
+registry = Fast::Prometheus.registry
 ```
 
 ### Counter
@@ -101,18 +124,18 @@ Collect an immutable snapshot and render it:
 
 ```ruby
 snapshot = registry.collect
-text = FastPrometheusClient::Formats::Text.render(snapshot)
-protobuf = FastPrometheusClient::Formats::Protobuf.render(snapshot)
+text = Fast::Prometheus::Formats::Text.render(snapshot)
+protobuf = Fast::Prometheus::Formats::Protobuf.render(snapshot)
 ```
 
 ### `/metrics` Endpoint (Protocol::HTTP Middleware)
 
 ```ruby
-require "fast_prometheus_client/middleware/exporter"
+require "fast/prometheus/middleware/exporter"
 
-app = FastPrometheusClient::Middleware::Exporter.new(
+app = Fast::Prometheus::Middleware::Exporter.new(
   my_app,
-  registry: FastPrometheusClient.registry,
+  registry: Fast::Prometheus.registry,
   path: "/metrics"
 )
 ```
@@ -124,7 +147,7 @@ Supports content negotiation (text vs protobuf) and gzip compression.
 #### gRPC Exporter
 
 ```ruby
-exporter = FastPrometheusClient::OTLP::GRPCExporter.new(
+exporter = Fast::Prometheus::OTLP::GRPCExporter.new(
   endpoint: "http://localhost:4317",
   resource_attributes: { service: "my-app" }
 )
@@ -135,7 +158,7 @@ exporter.close
 #### HTTP Exporter
 
 ```ruby
-exporter = FastPrometheusClient::OTLP::HTTPExporter.new(
+exporter = Fast::Prometheus::OTLP::HTTPExporter.new(
   endpoint: "http://localhost:9090",
   resource_attributes: { service: "my-app" }
 )
@@ -148,7 +171,7 @@ exporter.close
 Periodically push metrics using any exporter:
 
 ```ruby
-push = FastPrometheusClient::OTLP::Push.new(exporter: exporter, interval: 15)
+push = Fast::Prometheus::OTLP::Push.new(exporter: exporter, interval: 15)
 push.run
 # ... later ...
 push.stop
