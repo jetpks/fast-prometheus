@@ -1,0 +1,80 @@
+# No E2E job: script/e2e_prometheus_scrape.rb needs `brew install prometheus`
+# (promtool) which isn't available in the default GitHub-hosted runner image.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    env:
+      BUNDLE_PATH: vendor/bundle
+    steps:
+      - uses: actions/checkout@v7
+      - uses: jdx/mise-action@v4
+      - uses: actions/cache@v6
+        with:
+          path: vendor/bundle
+          key: bundle-ruby-${{ hashFiles('gems.locked') }}
+          restore-keys: bundle-ruby-
+      - run: bundle install
+      - run: bundle exec sus 2>&1 | tee /tmp/sus.log
+      - if: always()
+        name: Summary
+        run: |
+          echo "## Tests" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          tail -20 /tmp/sus.log >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+  lint:
+    runs-on: ubuntu-latest
+    env:
+      BUNDLE_PATH: vendor/bundle
+    steps:
+      - uses: actions/checkout@v7
+      - uses: jdx/mise-action@v4
+      - uses: actions/cache@v6
+        with:
+          path: vendor/bundle
+          key: bundle-ruby-${{ hashFiles('gems.locked') }}
+          restore-keys: bundle-ruby-
+      - run: bundle install
+      - run: bundle exec rubocop 2>&1 | tee /tmp/rubocop.log
+      - if: always()
+        name: Summary
+        run: |
+          echo "## Lint" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          tail -20 /tmp/rubocop.log >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+  security-audit:
+    runs-on: ubuntu-latest
+    env:
+      BUNDLE_PATH: vendor/bundle
+    steps:
+      - uses: actions/checkout@v7
+      - uses: jdx/mise-action@v4
+      - uses: actions/cache@v6
+        with:
+          path: vendor/bundle
+          key: bundle-ruby-${{ hashFiles('gems.locked') }}
+          restore-keys: bundle-ruby-
+      - run: bundle install
+      - run: gem install bundler-audit
+      - run: bundler-audit check --update 2>&1 | tee /tmp/audit.log
+      - if: always()
+        name: Summary
+        run: |
+          echo "## Security audit" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          tail -5 /tmp/audit.log >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"

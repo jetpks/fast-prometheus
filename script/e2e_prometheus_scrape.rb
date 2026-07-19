@@ -13,8 +13,8 @@ require "async"
 require "async/http/endpoint"
 require "async/http/server"
 
-require "fast_prometheus_client"
-require "fast_prometheus_client/middleware/exporter"
+require "fast/prometheus"
+require "fast/prometheus/middleware/exporter"
 
 PROMETHEUS_BIN = "/opt/homebrew/bin/prometheus"
 METRICS_HOST = "127.0.0.1"
@@ -34,14 +34,14 @@ Dir.mktmpdir do |tmpdir|
       scrape_interval: #{SCRAPE_INTERVAL}s
 
     scrape_configs:
-      - job_name: "fast_prometheus_client"
+      - job_name: "fast_prometheus"
         scrape_native_histograms: true
         static_configs:
           - targets: ["#{METRICS_HOST}:#{METRICS_PORT}"]
   YAML
 
   # Set up registry with test metrics
-  registry = FastPrometheusClient::Registry.new
+  registry = Fast::Prometheus::Registry.new
   counter = registry.counter(:fpc_e2e_jobs_total, docstring: "E2E jobs total")
   counter.increment(by: 3)
 
@@ -70,7 +70,7 @@ Dir.mktmpdir do |tmpdir|
   labeled_nh.observe(1.0, labels: { endpoint: "/health" })
 
   # Build middleware stack
-  middleware = FastPrometheusClient::Middleware::Exporter.new(
+  middleware = Fast::Prometheus::Middleware::Exporter.new(
     Protocol::HTTP::Middleware::NotFound,
     registry: registry
   )

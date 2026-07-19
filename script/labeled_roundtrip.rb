@@ -5,10 +5,10 @@
 # render via Protobuf, decode every length-delimited frame, assert LabelPairs
 # match what was registered.
 
-require "fast_prometheus_client"
-require "fast_prometheus_client/formats/protobuf"
+require "fast/prometheus"
+require "fast/prometheus/formats/protobuf"
 
-registry = FastPrometheusClient::Registry.new
+registry = Fast::Prometheus::Registry.new
 
 # Labeled counter
 counter = registry.counter(:labeled_counter_total, docstring: "a labeled counter", labels: [:job])
@@ -32,7 +32,7 @@ nh.observe(0.1, labels: { service: "auth" })
 
 # Render via protobuf
 snapshot = registry.collect
-bin = FastPrometheusClient::Formats::Protobuf.render(snapshot)
+bin = Fast::Prometheus::Formats::Protobuf.render(snapshot)
 
 # Split into length-delimited frames
 def split_frames(bin)
