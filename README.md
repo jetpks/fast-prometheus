@@ -188,6 +188,23 @@ non-blocking Hash mutation.
 Cross-thread use is out of contract — if you need thread safety, wrap the
 registry or metrics with Ruby's `Monitor` or `Mutex` externally.
 
+## Integration harness
+
+The sus suite and `script/` E2Es run against the checkout's `lib/`, so they
+can't catch packaging bugs — files missing from `spec.files`, runtime deps
+declared only for tests, require-path mistakes. `integration/run` builds (or
+takes) a `.gem`, installs it into an isolated `GEM_HOME`, and exercises the
+full v1 surface through that installed gem only:
+
+```bash
+./integration/run                    # builds fast-prometheus.gemspec from the checkout
+./integration/run path/to/some.gem   # tests a specific artifact, e.g. a downloaded release asset
+E2E_REQUIRED=1 ./integration/run     # fail (rather than skip) if prometheus/promtool aren't on PATH
+```
+
+Every pre-release should pass `E2E_REQUIRED=1 ./integration/run <the-tagged-.gem>`
+before the tag graduates.
+
 ## Benchmarks
 
 `benchmark-ips` comparisons, single process, Ruby 4.0.5 on Apple M4 Pro
