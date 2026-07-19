@@ -12,8 +12,8 @@ require "timeout"
 require "async"
 require "async/http/endpoint"
 
-require "fast_prometheus_client"
-require "fast_prometheus_client/otlp/http_exporter"
+require "fast/prometheus"
+require "fast/prometheus/otlp/http_exporter"
 
 PROMETHEUS_BIN = "/opt/homebrew/bin/prometheus"
 PROMETHEUS_HOST = "127.0.0.1"
@@ -30,7 +30,7 @@ Dir.mktmpdir do |tmpdir|
       scrape_interval: 15s
   YAML
 
-  registry = FastPrometheusClient::Registry.new
+  registry = Fast::Prometheus::Registry.new
   counter = registry.counter(:fpc_otlp_jobs_total, docstring: "OTLP jobs total")
   counter.increment(by: 3)
 
@@ -45,7 +45,7 @@ Dir.mktmpdir do |tmpdir|
 
   begin
     Async do
-      exporter = FastPrometheusClient::OTLP::HTTPExporter.new(
+      exporter = Fast::Prometheus::OTLP::HTTPExporter.new(
         endpoint: "http://#{PROMETHEUS_HOST}:#{PROMETHEUS_PORT}/api/v1/otlp",
         registry: registry
       )
@@ -93,7 +93,7 @@ Dir.mktmpdir do |tmpdir|
           exporter.export
           exported = true
           break
-        rescue FastPrometheusClient::Error
+        rescue Fast::Prometheus::Error
           sleep 1
         end
       end

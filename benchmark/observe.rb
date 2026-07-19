@@ -2,13 +2,13 @@
 
 require "benchmark/ips"
 require "prometheus/client"
-require_relative "../lib/fast_prometheus_client"
+require_relative "../lib/fast/prometheus"
 
 quick = ENV["BENCH_QUICK"]
 
 # ── Counter: labeled increment (labels resolved per call) ────────────────────
 
-fast_counter = FastPrometheusClient::Counter.new(
+fast_counter = Fast::Prometheus::Counter.new(
   :requests_total,
   docstring: "HTTP requests",
   labels: %i[method status]
@@ -27,7 +27,7 @@ pc_bound = pc_counter.with_labels(method: "GET", status: "200")
 
 # ── Histogram: classic observe (labels resolved per call) ────────────────────
 
-fast_histogram = FastPrometheusClient::Histogram.new(
+fast_histogram = Fast::Prometheus::Histogram.new(
   :request_duration_seconds,
   docstring: "Request duration",
   labels: [:method]
@@ -41,7 +41,7 @@ pc_histogram = Prometheus::Client::Histogram.new(
 
 # ── Native histogram (fast-prometheus-client only) ──────────────────────────
 
-fast_native = FastPrometheusClient::NativeHistogram.new(
+fast_native = Fast::Prometheus::NativeHistogram.new(
   :request_duration_seconds,
   docstring: "Request duration",
   labels: [:method]
