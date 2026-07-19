@@ -6,6 +6,6 @@ describe Fast::Prometheus do
   end
 
   it "has a valid version" do
-    expect(Fast::Prometheus::VERSION).to be(:match?, /\A\d+\.\d+\.\d+\z/)
+    expect(Gem::Version.correct?(Fast::Prometheus::VERSION)).to be == true
   end
 end
