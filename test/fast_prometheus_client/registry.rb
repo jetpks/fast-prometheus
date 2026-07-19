@@ -37,6 +37,14 @@ describe FastPrometheusClient::Registry do
       list << "fake"
       expect(registry.metrics.length).to be(:==, 1)
     end
+
+    it "keeps insertion order stable across an unregister" do
+      registry.register(FastPrometheusClient::Counter.new(:a, docstring: "A"))
+      registry.register(FastPrometheusClient::Counter.new(:b, docstring: "B"))
+      registry.register(FastPrometheusClient::Counter.new(:c, docstring: "C"))
+      registry.unregister(:b)
+      expect(registry.metrics.map(&:name)).to be(:==, %i[a c])
+    end
   end
 
   describe "convenience constructors" do

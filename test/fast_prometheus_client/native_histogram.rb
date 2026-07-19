@@ -178,6 +178,17 @@ describe FastPrometheusClient::NativeHistogram do
     end
   end
 
+  describe "#with_labels" do
+    it "binds an observe that's visible via the parent, preserving schema" do
+      nh = FastPrometheusClient::NativeHistogram.new(:t, docstring: "t", labels: [:service], schema: 2)
+      bound = nh.with_labels(service: "auth")
+      bound.observe(1.5)
+      slot = nh.get(labels: { service: "auth" })
+      expect(slot.count).to be(:==, 1)
+      expect(slot.schema).to be(:==, 2)
+    end
+  end
+
   describe "fiber-safety" do
     include Sus::Fixtures::Async::ReactorContext
 

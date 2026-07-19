@@ -83,6 +83,16 @@ describe FastPrometheusClient::Histogram do
     end
   end
 
+  describe "#with_labels" do
+    it "binds custom buckets and observes into the parent-visible series" do
+      h = FastPrometheusClient::Histogram.new(:t, docstring: "t", labels: [:path], buckets: [1, 2, 3])
+      bound = h.with_labels(path: "/health")
+      bound.observe(2.5)
+      expect(h.count(labels: { path: "/health" })).to be(:==, 1)
+      expect(bound.cumulative_buckets.map(&:first)).to be(:==, [1, 2, 3, Float::INFINITY])
+    end
+  end
+
   describe "fiber-safety" do
     include Sus::Fixtures::Async::ReactorContext
 

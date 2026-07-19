@@ -12,7 +12,6 @@ module FastPrometheusClient
   # Registry holds a collection of metrics and produces immutable snapshots.
   class Registry
     def initialize
-      @metrics = []
       @by_name = {}
     end
 
@@ -22,13 +21,11 @@ module FastPrometheusClient
       raise DuplicateMetric, "metric #{metric.name} already registered" if @by_name.key?(metric.name)
 
       @by_name[metric.name] = metric
-      @metrics << metric
       metric
     end
 
     # Remove a metric by name.
     def unregister(name)
-      @metrics.delete_if { |m| m.name == name }
       @by_name.delete(name)
     end
 
@@ -37,9 +34,9 @@ module FastPrometheusClient
       @by_name[name]
     end
 
-    # Return a shallow copy of the registered metrics array.
+    # Return the registered metrics, insertion order.
     def metrics
-      @metrics.dup
+      @by_name.values
     end
 
     # Convenience: build, register, and return a Counter.
@@ -69,7 +66,7 @@ module FastPrometheusClient
 
     # Collect an immutable snapshot of all registered metrics.
     def collect
-      Snapshot.of(@metrics)
+      Snapshot.of(metrics)
     end
   end
 

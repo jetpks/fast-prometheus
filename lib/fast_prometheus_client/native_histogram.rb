@@ -40,9 +40,8 @@ module FastPrometheusClient
 
     attr_reader :schema, :zero_threshold, :max_buckets
 
-    # rubocop: disable Layout/LineLength
-    def initialize(name, docstring:, labels: [], preset_labels: {}, schema: 3, zero_threshold: 2.0**-128, max_buckets: 160)
-      # rubocop: enable Layout/LineLength
+    def initialize(name, docstring:, labels: [], preset_labels: {}, schema: 3, zero_threshold: 2.0**-128,
+                   max_buckets: 160, store: nil)
       raise ArgumentError, "schema must be an Integer in -4..8" unless schema.is_a?(Integer) && (-4..8).include?(schema)
 
       valid_zero_threshold = zero_threshold.is_a?(Float) && zero_threshold >= 0
@@ -55,7 +54,7 @@ module FastPrometheusClient
       @zero_threshold = zero_threshold
       @max_buckets = max_buckets
 
-      super(name, docstring: docstring, labels: labels, preset_labels: preset_labels)
+      super(name, docstring: docstring, labels: labels, preset_labels: preset_labels, store: store)
     end
 
     def type
@@ -108,6 +107,12 @@ module FastPrometheusClient
     def get(labels: {})
       key = resolve(labels)
       store[key]
+    end
+
+    protected
+
+    def construction_options
+      { schema: @schema, zero_threshold: @zero_threshold, max_buckets: @max_buckets }
     end
 
     private
