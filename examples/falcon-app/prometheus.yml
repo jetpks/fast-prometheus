@@ -1,0 +1,8 @@
+global:
+  scrape_interval: 2s
+
+scrape_configs:
+  - job_name: "falcon_app"
+    scrape_native_histograms: true
+    static_configs:
+      - targets: ["localhost:9394"]
