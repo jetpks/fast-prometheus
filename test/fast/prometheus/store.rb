@@ -14,8 +14,12 @@ describe Fast::Prometheus::Store do
     expect(store[:missing]).to be_nil
   end
 
-  it "exposes the raw hash for iteration" do
+  it "returns a copy of the data for iteration" do
     store[:a] = 1.0
+    copy = store.to_h
+    expect(copy).to be(:==, { a: 1.0 })
+
+    copy[:b] = 2.0
     expect(store.to_h).to be(:==, { a: 1.0 })
   end
 

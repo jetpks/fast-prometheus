@@ -30,7 +30,7 @@ module Fast
       end
 
       def to_h
-        @data
+        @data.dup
       end
     end
   end

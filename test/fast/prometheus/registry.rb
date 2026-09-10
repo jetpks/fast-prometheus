@@ -20,6 +20,41 @@ describe Fast::Prometheus::Registry do
     end
   end
 
+  describe "#fetch_or_register" do
+    it "returns the existing metric without calling the block" do
+      counter = registry.register(Fast::Prometheus::Counter.new(:requests, docstring: "R"))
+      called = false
+      result = registry.fetch_or_register(:requests) do
+        called = true
+        Fast::Prometheus::Counter.new(:requests, docstring: "R")
+      end
+      expect(result).to be(:==, counter)
+      expect(called).to be(:==, false)
+    end
+
+    it "registers the block's metric when absent" do
+      result = registry.fetch_or_register(:requests) { Fast::Prometheus::Counter.new(:requests, docstring: "R") }
+      expect(result.name).to be(:==, :requests)
+      expect(registry.get(:requests)).to be(:==, result)
+    end
+
+    it "raises ArgumentError on a name mismatch" do
+      expect do
+        registry.fetch_or_register(:requests) { Fast::Prometheus::Counter.new(:other, docstring: "R") }
+      end.to raise_exception(ArgumentError)
+    end
+
+    it "registers exactly once under concurrent callers for one absent name" do
+      threads = 8.times.map do
+        Thread.new { registry.fetch_or_register(:requests) { Fast::Prometheus::Counter.new(:requests, docstring: "R") } }
+      end
+      results = threads.map(&:value)
+
+      expect(results.uniq.length).to be(:==, 1)
+      expect(registry.metrics.length).to be(:==, 1)
+    end
+  end
+
   describe "#unregister" do
     it "removes the metric by name" do
       counter = Fast::Prometheus::Counter.new(:requests, docstring: "Requests")

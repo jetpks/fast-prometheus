@@ -40,6 +40,7 @@ describe "Fast::Prometheus thread safety" do
             end
           end
         end
+        Thread.pass
       end
     rescue StandardError => e
       record_error.call(e)

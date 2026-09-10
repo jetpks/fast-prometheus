@@ -23,9 +23,13 @@ module Fast
           response = super
           record(request.method, response.status.to_s, start)
           response
-        rescue StandardError
-          record(request.method, "500", start)
-          raise
+        rescue StandardError => e
+          begin
+            record(request.method, "500", start)
+          rescue StandardError
+            nil
+          end
+          raise e
         end
 
         private
@@ -39,18 +43,19 @@ module Fast
 
         def ensure_counter
           name = :"#{@prefix}_requests_total"
-          @registry.get(name) || @registry.counter(name, docstring: "Total HTTP requests", labels: %i[method status])
+          @registry.fetch_or_register(name) do
+            Counter.new(name, docstring: "Total HTTP requests", labels: %i[method status])
+          end
         end
 
         def ensure_histogram
           name = :"#{@prefix}_request_duration_seconds"
-          existing = @registry.get(name)
-          return existing if existing
-
-          if @native
-            @registry.native_histogram(name, docstring: "HTTP request duration in seconds", labels: %i[method status])
-          else
-            @registry.histogram(name, docstring: "HTTP request duration in seconds", labels: %i[method status])
+          @registry.fetch_or_register(name) do
+            if @native
+              NativeHistogram.new(name, docstring: "HTTP request duration in seconds", labels: %i[method status])
+            else
+              Histogram.new(name, docstring: "HTTP request duration in seconds", labels: %i[method status])
+            end
           end
         end
       end

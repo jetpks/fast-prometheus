@@ -38,6 +38,25 @@ module Fast
         @lock.synchronize { @by_name[name] }
       end
 
+      # Atomic fetch-or-register: returns the metric already registered under
+      # +name+, else registers and returns the block's metric. The block runs
+      # only when +name+ is absent, inside the same lock hold as the lookup,
+      # so concurrent callers for one absent name never race each other into
+      # DuplicateMetric. Raises ArgumentError if the block's metric is not
+      # named +name+.
+      def fetch_or_register(name)
+        @lock.synchronize do
+          next @by_name[name] if @by_name.key?(name)
+
+          metric = yield
+          unless metric.name == name
+            raise ArgumentError, "fetch_or_register(#{name.inspect}) block built #{metric.name.inspect}"
+          end
+
+          @by_name[name] = metric
+        end
+      end
+
       # Return the registered metrics, insertion order.
       def metrics
         @lock.synchronize { @by_name.values }
@@ -68,9 +87,11 @@ module Fast
         register(NativeHistogram.new(name, **kwargs))
       end
 
-      # Collect an immutable snapshot of all registered metrics.
+      # Collect an immutable snapshot of all registered metrics. The registry
+      # lock only covers copying the metric list; each metric's own snapshot
+      # is built under its own store lock (see Snapshot.of).
       def collect
-        @lock.synchronize { Snapshot.of(@by_name.values) }
+        Snapshot.of(metrics)
       end
     end
 
