@@ -69,5 +69,38 @@ describe Fast::Prometheus::Middleware::Instrumentation do
       counter = registry.get(:http_server_requests_total)
       expect(counter.get(labels: { method: "GET", status: "500" })).to be(:==, 1.0)
     end
+
+    it "propagates the delegate's exception even when recording fails" do
+      registry = Fast::Prometheus::Registry.new
+      registry.counter(:http_server_requests_total, docstring: "x", labels: [:path])
+      delegate = Protocol::HTTP::Middleware.for do |_request|
+        raise "boom"
+      end
+      middleware = Fast::Prometheus::Middleware::Instrumentation.new(delegate, registry: registry)
+
+      request = Protocol::HTTP::Request["GET", "/error"]
+      raised = false
+      begin
+        middleware.call(request)
+      rescue RuntimeError => e
+        raised = true
+        expect(e.message).to be(:==, "boom")
+      end
+      expect(raised).to be(:==, true)
+    end
+  end
+
+  describe "concurrent construction" do
+    it "registers each metric exactly once and raises nothing" do
+      registry = Fast::Prometheus::Registry.new
+
+      threads = 8.times.map do
+        Thread.new { Fast::Prometheus::Middleware::Instrumentation.new(delegate, registry: registry) }
+      end
+      threads.each(&:value)
+
+      names = %i[http_server_request_duration_seconds http_server_requests_total]
+      expect(registry.metrics.map(&:name).sort).to be(:==, names)
+    end
   end
 end

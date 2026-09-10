@@ -71,11 +71,7 @@ module Fast
 
       # Cumulative bucket counts for a specific series (delegates to slot).
       def cumulative_buckets(labels: {})
-        store.synchronize do
-          next unless (slot = get(labels: labels))
-
-          slot.cumulative_buckets
-        end
+        store.synchronize { get(labels: labels)&.cumulative_buckets }
       end
 
       # Get the slot for a label set, or nil if no observations recorded.
@@ -86,20 +82,12 @@ module Fast
 
       # Reader for sum of a specific series.
       def sum(labels: {})
-        store.synchronize do
-          next unless (slot = get(labels: labels))
-
-          slot.sum
-        end
+        store.synchronize { get(labels: labels)&.sum }
       end
 
       # Reader for count of a specific series.
       def count(labels: {})
-        store.synchronize do
-          next unless (slot = get(labels: labels))
-
-          slot.count
-        end
+        store.synchronize { get(labels: labels)&.count }
       end
 
       def self.linear_buckets(start:, width:, count:)
