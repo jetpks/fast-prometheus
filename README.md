@@ -56,6 +56,16 @@ registry = Fast::Prometheus::Registry.new
 registry = Fast::Prometheus.registry
 ```
 
+Use `fetch_or_register` when several boot paths might construct the same
+metric on a shared registry — it returns the existing metric if one is
+already registered under that name, else registers and returns the block's:
+
+```ruby
+requests = registry.fetch_or_register(:http_requests_total) do
+  Fast::Prometheus::Counter.new(:http_requests_total, docstring: "Total HTTP requests", labels: %i[method path])
+end
+```
+
 ### Counter
 
 A monotonically increasing metric.
@@ -104,6 +114,31 @@ native = registry.native_histogram(:request_duration_seconds, docstring: "Reques
 native.observe(0.042, labels: { method: "GET" })
 ```
 
+#### Scraping native histograms
+
+Native histograms are exposed only in the protobuf exposition format — the
+text format omits them, so a default Prometheus scrape never sees them. Tell
+Prometheus to negotiate protobuf by setting `scrape_native_histograms: true`
+on the scrape config (this is the stanza the integration harness uses):
+
+```yaml
+scrape_configs:
+  - job_name: "my_app"
+    scrape_native_histograms: true
+    static_configs:
+      - targets: ["localhost:9394"]
+```
+
+Alternatively, list `PrometheusProto` first in `scrape_protocols`:
+
+```yaml
+scrape_configs:
+  - job_name: "my_app"
+    scrape_protocols: ["PrometheusProto", "OpenMetricsText1.0.0"]
+    static_configs:
+      - targets: ["localhost:9394"]
+```
+
 ### Bound Metrics (`with_labels`)
 
 Pre-set labels for fast-path hot loops. Validation happens once at bind time.
@@ -141,6 +176,32 @@ app = Fast::Prometheus::Middleware::Exporter.new(
 ```
 
 Supports content negotiation (text vs protobuf) and gzip compression.
+
+### Request Instrumentation (Protocol::HTTP Middleware)
+
+```ruby
+require "fast/prometheus/middleware/instrumentation"
+
+app = Fast::Prometheus::Middleware::Instrumentation.new(
+  my_app,
+  registry: Fast::Prometheus.registry,
+  native: false,
+  prefix: "http_server"
+)
+```
+
+Drop this in front of a `Protocol::HTTP` app to record RED metrics for every
+request: `registry` defaults to `Fast::Prometheus.registry`, `native`
+defaults to `false`, and `prefix` defaults to `"http_server"`. It records two
+metrics per request, labelled by `method` and `status`:
+
+- `<prefix>_requests_total` — a `Counter`.
+- `<prefix>_request_duration_seconds` — a `Histogram`, or a `NativeHistogram`
+  when `native: true`.
+
+If the delegate raises, the request is recorded with `status: "500"` and the
+exception is re-raised. The middleware reuses metrics already registered
+under these names on `registry` rather than registering its own.
 
 ### OTLP Export
 
@@ -186,7 +247,9 @@ by one lock, shared by every metric bound to it via `with_labels`; a mutation
 each a single critical section, and `collect` observes every series of a
 metric at one consistent point in time. Registry operations (`register`,
 `unregister`, `get`, `metrics`, `collect`) are serialized on a registry-owned
-lock. This makes the library correct under Falcon `--threaded --count N`,
+lock. `metric.synchronize { … }` runs a block atomically with respect to
+every other mutation or read of that metric's store, including its
+`with_labels`-bound children. This makes the library correct under Falcon `--threaded --count N`,
 where one process's N OS threads (each running its own Async reactor) share
 one module-level `Fast::Prometheus.registry`.
 
