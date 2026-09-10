@@ -1,9 +1,9 @@
 # fast-prometheus
 
 A fiber-native Prometheus client for modern Ruby. Built on the socketry/async
-ecosystem: zero-lock hot path under cooperative scheduling, native histograms
-as a first-class metric type, protobuf scrape exposition, and OTLP export over
-gRPC (async-grpc) and HTTP.
+ecosystem: safe to share across OS threads and fibers by default, native
+histograms as a first-class metric type, protobuf scrape exposition, and OTLP
+export over gRPC (async-grpc) and HTTP.
 
 Not a fork of prometheus/client_ruby — a new gem that uses it as the reference
 for supported surface.
@@ -177,16 +177,22 @@ push.run
 push.stop
 ```
 
-## Fiber-Atomicity Invariant
+## Concurrency
 
-Metric updates perform no blocking operations between reading and writing a
-storage slot. Under cooperative scheduling (Async/IO), plain Hash
-read-modify-write is fiber-atomic with no mutex. This is the foundation of
-the zero-lock hot path: every `increment`, `observe`, and `set` is a single
-non-blocking Hash mutation.
+A `Registry` is safe to share across OS threads by default, and remains safe
+across fibers within a thread. Every metric's per-series storage is guarded
+by one lock, shared by every metric bound to it via `with_labels`; a mutation
+(`increment`, `set`, `observe`) and a read (`get`, `values`, a snapshot) are
+each a single critical section, and `collect` observes every series of a
+metric at one consistent point in time. Registry operations (`register`,
+`unregister`, `get`, `metrics`, `collect`) are serialized on a registry-owned
+lock. This makes the library correct under Falcon `--threaded --count N`,
+where one process's N OS threads (each running its own Async reactor) share
+one module-level `Fast::Prometheus.registry`.
 
-Cross-thread use is out of contract — if you need thread safety, wrap the
-registry or metrics with Ruby's `Monitor` or `Mutex` externally.
+Falcon's `--forked` mode gives each process its own registry, so a single
+scrape only sees the metrics of the process that handled it — aggregating
+across processes is out of scope for this gem.
 
 ## Integration harness
 
@@ -212,33 +218,33 @@ before the tag graduates.
 
 ```
 Warming up --------------------------------------
-                counter labels (fast)    98.092k i/100ms
-   counter labels (prometheus-client)    87.610k i/100ms
-                 counter bound (fast)   199.353k i/100ms
-    counter bound (prometheus-client)   155.526k i/100ms
-             histogram observe (fast)   122.910k i/100ms
-histogram observe (prometheus-client)    44.705k i/100ms
-      native histogram observe (fast)   104.543k i/100ms
+                counter labels (fast)   140.435k i/100ms
+   counter labels (prometheus-client)   106.893k i/100ms
+                 counter bound (fast)   201.717k i/100ms
+    counter bound (prometheus-client)   193.579k i/100ms
+             histogram observe (fast)   173.954k i/100ms
+histogram observe (prometheus-client)    56.747k i/100ms
+      native histogram observe (fast)   135.968k i/100ms
 Calculating -------------------------------------
-                counter labels (fast)    975.979k (± 0.4%) i/s    (1.02 μs/i) -      1.962M in   2.010126s
-   counter labels (prometheus-client)    878.694k (± 0.5%) i/s    (1.14 μs/i) -      1.840M in   2.093800s
-                 counter bound (fast)      2.001M (± 0.5%) i/s  (499.72 ns/i) -      4.186M in   2.092052s
-    counter bound (prometheus-client)      1.539M (± 2.2%) i/s  (649.93 ns/i) -      3.111M in   2.021608s
-             histogram observe (fast)      1.218M (± 0.9%) i/s  (820.81 ns/i) -      2.458M in   2.017704s
-histogram observe (prometheus-client)    448.711k (± 0.5%) i/s    (2.23 μs/i) -    938.805k in   2.092228s
-      native histogram observe (fast)      1.052M (± 0.3%) i/s  (950.52 ns/i) -      2.195M in   2.086774s
+                counter labels (fast)      1.446M (± 1.8%) i/s  (691.74 ns/i) -      2.949M in   2.040039s
+   counter labels (prometheus-client)      1.113M (± 1.6%) i/s  (898.51 ns/i) -      2.245M in   2.016944s
+                 counter bound (fast)      2.000M (± 1.6%) i/s  (499.99 ns/i) -      4.034M in   2.017128s
+    counter bound (prometheus-client)      1.938M (± 1.0%) i/s  (516.10 ns/i) -      4.065M in   2.098010s
+             histogram observe (fast)      1.723M (± 1.3%) i/s  (580.29 ns/i) -      3.479M in   2.018880s
+histogram observe (prometheus-client)    564.954k (± 1.4%) i/s    (1.77 μs/i) -      1.135M in   2.008907s
+      native histogram observe (fast)      1.363M (± 1.4%) i/s  (733.88 ns/i) -      2.855M in   2.095457s
 
 Comparison:
-                 counter bound (fast):  2001103.7 i/s
-    counter bound (prometheus-client):  1538636.6 i/s - 1.30x  slower
-             histogram observe (fast):  1218315.5 i/s - 1.64x  slower
-      native histogram observe (fast):  1052055.9 i/s - 1.90x  slower
-                counter labels (fast):   975978.6 i/s - 2.05x  slower
-   counter labels (prometheus-client):   878694.2 i/s - 2.28x  slower
-histogram observe (prometheus-client):   448710.7 i/s - 4.46x  slower
+                 counter bound (fast):  2000041.6 i/s
+    counter bound (prometheus-client):  1937626.1 i/s - 1.03x  slower
+             histogram observe (fast):  1723272.3 i/s - 1.16x  slower
+                counter labels (fast):  1445626.8 i/s - 1.38x  slower
+      native histogram observe (fast):  1362627.8 i/s - 1.47x  slower
+   counter labels (prometheus-client):  1112947.6 i/s - 1.80x  slower
+histogram observe (prometheus-client):   564954.0 i/s - 3.54x  slower
 ```
 
-Key takeaways:
-- Bound counter (fast) is **1.3x** faster than prometheus-client's bound counter
-- Classic histogram observe is **2.7x** faster (1.2M vs 449K i/s)
-- Native histogram observe runs at **1.05M i/s** with no prometheus-client equivalent
+Key takeaways (locked, thread-safe by default):
+- Bound counter (fast) is on par with prometheus-client's bound counter (1.03x)
+- Classic histogram observe is **3.0x** faster (1.72M vs 565K i/s)
+- Native histogram observe runs at **1.36M i/s** with no prometheus-client equivalent

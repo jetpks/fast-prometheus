@@ -14,30 +14,33 @@ module Fast
     class Registry
       def initialize
         @by_name = {}
+        @lock = Mutex.new
       end
 
       # Register a metric. Raises DuplicateMetric if a metric with the same name
       # is already registered. Returns the metric.
       def register(metric)
-        raise DuplicateMetric, "metric #{metric.name} already registered" if @by_name.key?(metric.name)
+        @lock.synchronize do
+          raise DuplicateMetric, "metric #{metric.name} already registered" if @by_name.key?(metric.name)
 
-        @by_name[metric.name] = metric
-        metric
+          @by_name[metric.name] = metric
+          metric
+        end
       end
 
       # Remove a metric by name.
       def unregister(name)
-        @by_name.delete(name)
+        @lock.synchronize { @by_name.delete(name) }
       end
 
       # Look up a metric by name, or nil.
       def get(name)
-        @by_name[name]
+        @lock.synchronize { @by_name[name] }
       end
 
       # Return the registered metrics, insertion order.
       def metrics
-        @by_name.values
+        @lock.synchronize { @by_name.values }
       end
 
       # Convenience: build, register, and return a Counter.
@@ -67,13 +70,17 @@ module Fast
 
       # Collect an immutable snapshot of all registered metrics.
       def collect
-        Snapshot.of(metrics)
+        @lock.synchronize { Snapshot.of(@by_name.values) }
       end
     end
 
-    # Module-level default registry (fiber-safe under cooperative scheduling).
+    @registry_lock = Mutex.new
+
+    # Module-level default registry. Constructed at most once across threads:
+    # the fast path is an unsynchronized read (safe under the GVL), and only
+    # the first caller pays for the lock.
     def self.registry
-      @registry ||= Registry.new
+      @registry || @registry_lock.synchronize { @registry ||= Registry.new }
     end
 
     def self.registry=(registry)
