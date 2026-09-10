@@ -14,7 +14,7 @@ module Fast
         raise ArgumentError, "value must be a numeric" unless value.is_a?(Numeric)
 
         key = resolve(labels)
-        store[key] = value.to_f
+        store.synchronize { store[key] = value.to_f }
       end
 
       def increment(by: 1, labels: {})
@@ -22,7 +22,7 @@ module Fast
         return if by.zero?
 
         key = resolve(labels)
-        store[key] = (store[key] || 0.0) + by.to_f
+        store.synchronize { store[key] = (store[key] || 0.0) + by.to_f }
       end
 
       def decrement(by: 1, labels: {})
@@ -30,7 +30,7 @@ module Fast
         return if by.zero?
 
         key = resolve(labels)
-        store[key] = (store[key] || 0.0) - by.to_f
+        store.synchronize { store[key] = (store[key] || 0.0) - by.to_f }
       end
     end
   end

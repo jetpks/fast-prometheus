@@ -23,14 +23,16 @@ module Fast
 
       def observe(value, labels: {})
         key = resolve(labels)
-        slot = store[key] ||= Value.new
-        slot.sum += value
-        slot.count += 1
+        store.synchronize do
+          slot = store[key] ||= Value.new
+          slot.sum += value
+          slot.count += 1
+        end
       end
 
       def get(labels: {})
         key = resolve(labels)
-        store[key]
+        store.synchronize { store[key] }
       end
 
       protected

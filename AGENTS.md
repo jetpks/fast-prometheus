@@ -17,7 +17,7 @@ BENCH_QUICK=1 bundle exec ruby benchmark/observe.rb
 - 2-space indentation
 - `# frozen_string_literal: true` on every source file
 - Double-quoted strings (`"..."`)
-- Fibers, never threads: no `Thread`, `Mutex`, or `Monitor` anywhere in the codebase
+- Fibers remain the IO concurrency model. `Thread::Mutex`/`Monitor` are permitted only where shared mutable state is guarded — metric stores and the registry. `Thread` is permitted only in tests and scripts that verify cross-thread behavior.
 
 ## Test Rules
 

@@ -15,15 +15,19 @@ module Fast
 
     MetricSnapshot = Data.define(:name, :docstring, :type, :label_names, :series) do
       # Build a MetricSnapshot from a live metric. Reads only public readers
-      # and copies all mutable structures.
+      # and copies all mutable structures. The whole build runs under the
+      # metric's lock so no series is observed mid-mutation and no writer
+      # interleaves between series.
       def self.of(metric)
-        new(
-          metric.name,
-          metric.docstring,
-          metric.type,
-          metric.label_names.dup.freeze,
-          build_series(metric).freeze
-        )
+        metric.synchronize do
+          new(
+            metric.name,
+            metric.docstring,
+            metric.type,
+            metric.label_names.dup.freeze,
+            build_series(metric).freeze
+          )
+        end
       end
 
       def self.build_series(metric)

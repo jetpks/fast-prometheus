@@ -1,16 +1,16 @@
 # frozen_string_literal: true
 
 require_relative "errors"
+require_relative "store"
 
 module Fast
   module Prometheus
     # Metric is the abstract base class for all metric types.
     #
-    # Fiber-atomicity invariant: metric updates perform no blocking operations
-    # between reading and writing a storage slot. Under cooperative scheduling
-    # (Async/IO), plain Hash read-modify-write is fiber-atomic with no mutex.
-    # Cross-thread use is out of contract — if you need thread safety, use
-    # Ruby's Monitor or Mutex externally.
+    # Every metric's per-series storage is a Store, guarded by its own lock.
+    # Metrics produced by #with_labels share their parent's Store (and thus
+    # its lock), so a mutation on a bound metric and a mutation on its parent
+    # are mutually exclusive. Safe to share across OS threads and fibers.
     class Metric
       METRIC_NAME = /\A[a-zA-Z_:][a-zA-Z0-9_:]*\z/
       LABEL_NAME = /\A[a-zA-Z_][a-zA-Z0-9_]*\z/
@@ -25,7 +25,7 @@ module Fast
         @docstring = docstring
         @label_names = labels
         @preset_labels = preset_labels.transform_values { |v| v.to_s.freeze }
-        @store = store || {}
+        @store = store || Store.new
 
         return unless fully_bound?
 
@@ -39,7 +39,7 @@ module Fast
       # Slot-based types (Histogram, Summary, NativeHistogram) override to return nil.
       def get(labels: {})
         key = resolve(labels)
-        store[key] || 0.0
+        store.synchronize { store[key] || 0.0 }
       end
 
       def type
@@ -60,7 +60,15 @@ module Fast
       end
 
       def values
-        @store.transform_keys { |key| @label_names.zip(key).to_h }
+        store.synchronize { store.to_h.transform_keys { |key| @label_names.zip(key).to_h } }
+      end
+
+      # Runs +block+ exclusively with respect to every other mutation or read
+      # of this metric's store (including on metrics sharing it via
+      # #with_labels). Reentrant on the same thread. This is the seam
+      # MetricSnapshot uses to build a consistent snapshot of every series.
+      def synchronize(&block)
+        store.synchronize(&block)
       end
 
       protected
