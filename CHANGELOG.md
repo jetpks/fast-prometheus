@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Metric#synchronize` — runs a block atomically with respect to every other
   mutation or read of that metric's store, including its `with_labels`-bound
   children.
+- `Fast::Prometheus::Rack::Exporter` and `Fast::Prometheus::Rack::Instrumentation` —
+  plain Rack middleware for `config.ru`, Rails, Puma and any other Rack host,
+  built on the same content-negotiation and RED-recording core as the
+  Falcon-native `Middleware::Exporter`/`Middleware::Instrumentation`.
 
 ### Fixed
 

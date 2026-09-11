@@ -1,9 +1,10 @@
 # fast-prometheus
 
 A fiber-native Prometheus client for modern Ruby, built on the socketry/async
-ecosystem: safe to share one `Registry` across OS threads and fibers by
-default, native histograms as a first-class metric type, protobuf scrape
-exposition, and OTLP export over gRPC (async-grpc) and HTTP.
+ecosystem: HTTP middleware for `Protocol::HTTP` (Falcon-native) and Rack, safe
+to share one `Registry` across OS threads and fibers by default, native
+histograms as a first-class metric type, protobuf scrape exposition, and OTLP
+export over gRPC (async-grpc) and HTTP.
 
 Not a fork of `prometheus/client_ruby` — a new gem that uses it as the
 reference for supported surface.
@@ -55,6 +56,9 @@ under Falcon and scraping it with a real Prometheus, see
 
 ### How-to guides
 
+- [How to instrument a Rack app](docs/how-to/instrument-a-rack-app.md) — add the two Rack middleware to a `config.ru`, Rails app or Puma host.
+- [How to instrument a falcon.rb service](docs/how-to/instrument-a-falcon-service.md) — run the Falcon-native middleware under `falcon host` or a threaded launcher.
+- [How to serve metrics on a separate port](docs/how-to/serve-metrics-on-a-separate-port.md) — run `/metrics` on its own `Async::HTTP::Server`, off the app's port.
 - [How to scrape native histograms](docs/how-to/scrape-native-histograms.md) — configure Prometheus to negotiate protobuf so native histograms aren't dropped.
 - [How to share one registry across boot paths](docs/how-to/share-a-registry.md) — use `fetch_or_register` so multiple boot paths can construct the same metric safely.
 - [How to export over OTLP](docs/how-to/export-otlp.md) — push metrics to an OTLP collector over gRPC or HTTP.
