@@ -12,7 +12,7 @@ Gem::Specification.new do |spec|
 
   spec.homepage = "https://github.com/jetpks/fast-prometheus"
 
-  spec.required_ruby_version = ">= 3.4"
+  spec.required_ruby_version = ">= 3.3"
 
   spec.files = Dir.glob(["{lib}/**/*", "*.md"], File::FNM_DOTMATCH, base: __dir__)
 

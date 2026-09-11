@@ -10,7 +10,7 @@ class TestMetric < Fast::Prometheus::Metric
 
   def touch(labels: {})
     key = resolve(labels)
-    store[key] = (store[key] || 0.0) + 1.0
+    store.synchronize { store[key] = (store[key] || 0.0) + 1.0 }
   end
 
   def public_resolve(labels)

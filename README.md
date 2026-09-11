@@ -1,12 +1,13 @@
 # fast-prometheus
 
-A fiber-native Prometheus client for modern Ruby. Built on the socketry/async
-ecosystem: zero-lock hot path under cooperative scheduling, native histograms
-as a first-class metric type, protobuf scrape exposition, and OTLP export over
-gRPC (async-grpc) and HTTP.
+A fiber-native Prometheus client for modern Ruby, built on the socketry/async
+ecosystem: HTTP middleware for `Protocol::HTTP` (Falcon-native) and Rack, safe
+to share one `Registry` across OS threads and fibers by default, native
+histograms as a first-class metric type, protobuf scrape exposition, and OTLP
+export over gRPC (async-grpc) and HTTP.
 
-Not a fork of prometheus/client_ruby — a new gem that uses it as the reference
-for supported surface.
+Not a fork of `prometheus/client_ruby` — a new gem that uses it as the
+reference for supported surface.
 
 ## Installation
 
@@ -20,225 +21,89 @@ Or add to your `Gemfile`:
 gem "fast-prometheus"
 ```
 
-`require "fast/prometheus"` loads only the core (metrics, registry,
-snapshot) — zero IO dependencies. Scrape formats, HTTP middleware, and OTLP
-export are opt-in surfaces that each pull their own dependencies (and require
-the core themselves, so they're independently requirable):
+`require "fast/prometheus"` loads only the core, with no IO dependencies. The
+opt-in surfaces and what each pulls in are listed in
+[the require-path reference](docs/reference/require-paths.md).
 
-| Require path                              | Pulls in                          |
-|--------------------------------------------|------------------------------------|
-| `fast/prometheus`                          | core only — no IO deps             |
-| `fast/prometheus/formats/text`              | core                                |
-| `fast/prometheus/formats/protobuf`          | core, google-protobuf              |
-| `fast/prometheus/middleware/exporter`       | core, protocol-http, both formats  |
-| `fast/prometheus/middleware/instrumentation`| core, protocol-http                |
-| `fast/prometheus/otlp/mapper`               | core, vendored OTLP protos          |
-| `fast/prometheus/otlp/http_exporter`        | core, async-http                    |
-| `fast/prometheus/otlp/grpc_exporter`        | core, async-http, async-grpc        |
-| `fast/prometheus/otlp/push`                 | core, async, console                |
-| `fast/prometheus/otlp/service_interface`    | core, protocol-grpc                 |
-
-The vendored `Opentelemetry::Proto` descriptors under `fast/prometheus/otlp/pb`
-may conflict with the `opentelemetry-proto` gem if both are loaded in the same
-process (duplicate protobuf descriptor registration). This only affects
-processes that opt into OTLP export.
-
-## Usage
-
-### Registry
+## Quickstart
 
 ```ruby
 require "fast/prometheus"
+require "fast/prometheus/formats/text"
 
 registry = Fast::Prometheus::Registry.new
 
-# Or use the module-level default:
-registry = Fast::Prometheus.registry
-```
-
-### Counter
-
-A monotonically increasing metric.
-
-```ruby
 requests = registry.counter(:http_requests_total, docstring: "Total HTTP requests", labels: %i[method path])
+duration = registry.histogram(:request_duration_seconds, docstring: "Request duration", labels: [:method])
+
 requests.increment(labels: { method: "GET", path: "/" })
 requests.increment(by: 5, labels: { method: "POST", path: "/api" })
-```
-
-### Gauge
-
-An instantaneous value that can go up or down.
-
-```ruby
-temperature = registry.gauge(:cpu_temperature_celsius, docstring: "CPU temperature", labels: [:core])
-temperature.set(72.5, labels: { core: "0" })
-temperature.increment(labels: { core: "0" })
-temperature.decrement(by: 5, labels: { core: "0" })
-```
-
-### Histogram
-
-Samples observations and counts them in configurable buckets.
-
-```ruby
-duration = registry.histogram(:request_duration_seconds, docstring: "Request duration", labels: [:method])
 duration.observe(0.042, labels: { method: "GET" })
+duration.observe(0.018, labels: { method: "GET" })
+
+puts Fast::Prometheus::Formats::Text.render(registry.collect)
 ```
 
-### Summary
+Run with `bundle exec ruby -I lib` from the repo root. For running this
+under Falcon and scraping it with a real Prometheus, see
+[the Falcon tutorial](docs/tutorials/falcon-app.md).
 
-Accumulates observations as sum + count per label set.
+## Documentation
 
-```ruby
-latency = registry.summary(:request_latency_seconds, docstring: "Request latency", labels: [:method])
-latency.observe(0.037, labels: { method: "GET" })
-```
+### Tutorials
 
-### NativeHistogram
+- [Tutorial: instrument a Falcon app](docs/tutorials/falcon-app.md) — build a Falcon app instrumented with fast-prometheus and scrape it with Prometheus.
 
-Sparse exponential histogram covering the full float range.
+### How-to guides
 
-```ruby
-native = registry.native_histogram(:request_duration_seconds, docstring: "Request duration", labels: [:method])
-native.observe(0.042, labels: { method: "GET" })
-```
+- [How to instrument a Rack app](docs/how-to/instrument-a-rack-app.md) — add the two Rack middleware to a `config.ru`, Rails app or Puma host.
+- [How to instrument a falcon.rb service](docs/how-to/instrument-a-falcon-service.md) — run the Falcon-native middleware under `falcon host` or a threaded launcher.
+- [How to serve metrics on a separate port](docs/how-to/serve-metrics-on-a-separate-port.md) — run `/metrics` on its own `Async::HTTP::Server`, off the app's port.
+- [How to scrape native histograms](docs/how-to/scrape-native-histograms.md) — configure Prometheus to negotiate protobuf so native histograms aren't dropped.
+- [How to share one registry across boot paths](docs/how-to/share-a-registry.md) — use `fetch_or_register` so multiple boot paths can construct the same metric safely.
+- [How to export over OTLP](docs/how-to/export-otlp.md) — push metrics to an OTLP collector over gRPC or HTTP.
+- [How to verify a release build](docs/how-to/verify-a-release.md) — run the integration harness against a packaged gem before tagging.
 
-### Bound Metrics (`with_labels`)
+### Reference
 
-Pre-set labels for fast-path hot loops. Validation happens once at bind time.
+- [Reference: registry and metrics](docs/reference/metrics.md) — every public class and method on `Registry` and the five metric types.
+- [Reference: exposition formats and HTTP middleware](docs/reference/exposition.md) — `Formats::Text`, `Formats::Protobuf`, `Middleware::Exporter`, `Middleware::Instrumentation`.
+- [Reference: OTLP export](docs/reference/otlp.md) — `OTLP::HTTPExporter`, `OTLP::GRPCExporter`, `OTLP::Push`, `OTLP::Mapper`.
+- [Reference: require paths and dependencies](docs/reference/require-paths.md) — what each require path loads and what it pulls in.
 
-```ruby
-# Bind outside the loop
-get_counter = requests.with_labels(method: "GET", path: "/")
+### Explanation
 
-# Hot loop — no label resolution overhead
-loop do
-  get_counter.increment
-end
-```
+- [Concurrency model](docs/explanation/concurrency.md) — the locking contract and what it guarantees under threads and fibers.
+- [Native histograms](docs/explanation/native-histograms.md) — what a native histogram is and why it's protobuf-only.
+- [Design: why a new gem](docs/explanation/design.md) — why fast-prometheus exists instead of a `client_ruby` fork.
+- [Benchmarks](docs/explanation/benchmarks.md) — the full benchmark-ips run and how to reproduce it.
 
-### Scrape Exposition
+## Concurrency
 
-Collect an immutable snapshot and render it:
+A `Registry` is safe to share across every OS thread of a process, and
+remains safe across fibers within a thread — correct under Falcon
+`--threaded --count N`, where the N OS threads share one module-level
+`Fast::Prometheus.registry`. Falcon `--forked` mode gives each process its
+own registry, so a single scrape only sees the metrics of the process that
+handled it; aggregating across processes is out of scope. See
+[the concurrency model](docs/explanation/concurrency.md) for the full guarantee.
 
-```ruby
-snapshot = registry.collect
-text = Fast::Prometheus::Formats::Text.render(snapshot)
-protobuf = Fast::Prometheus::Formats::Protobuf.render(snapshot)
-```
+## Performance
 
-### `/metrics` Endpoint (Protocol::HTTP Middleware)
+Single process, locked, thread-safe by default (`benchmark-ips` comparisons
+against `prometheus-client`; see [the benchmarks page](docs/explanation/benchmarks.md) for the
+full run and conditions):
 
-```ruby
-require "fast/prometheus/middleware/exporter"
+- Bound counter (fast) is on par with prometheus-client's bound counter (1.04x)
+- Classic histogram observe is **3.0x** faster (1.71M vs 566K i/s)
+- Native histogram observe runs at **1.35M i/s** with no prometheus-client equivalent
 
-app = Fast::Prometheus::Middleware::Exporter.new(
-  my_app,
-  registry: Fast::Prometheus.registry,
-  path: "/metrics"
-)
-```
-
-Supports content negotiation (text vs protobuf) and gzip compression.
-
-### OTLP Export
-
-#### gRPC Exporter
-
-```ruby
-exporter = Fast::Prometheus::OTLP::GRPCExporter.new(
-  endpoint: "http://localhost:4317",
-  resource_attributes: { service: "my-app" }
-)
-exporter.export
-exporter.close
-```
-
-#### HTTP Exporter
-
-```ruby
-exporter = Fast::Prometheus::OTLP::HTTPExporter.new(
-  endpoint: "http://localhost:9090",
-  resource_attributes: { service: "my-app" }
-)
-exporter.export
-exporter.close
-```
-
-#### Push Loop
-
-Periodically push metrics using any exporter:
-
-```ruby
-push = Fast::Prometheus::OTLP::Push.new(exporter: exporter, interval: 15)
-push.run
-# ... later ...
-push.stop
-```
-
-## Fiber-Atomicity Invariant
-
-Metric updates perform no blocking operations between reading and writing a
-storage slot. Under cooperative scheduling (Async/IO), plain Hash
-read-modify-write is fiber-atomic with no mutex. This is the foundation of
-the zero-lock hot path: every `increment`, `observe`, and `set` is a single
-non-blocking Hash mutation.
-
-Cross-thread use is out of contract — if you need thread safety, wrap the
-registry or metrics with Ruby's `Monitor` or `Mutex` externally.
-
-## Integration harness
-
-The sus suite and `script/` E2Es run against the checkout's `lib/`, so they
-can't catch packaging bugs — files missing from `spec.files`, runtime deps
-declared only for tests, require-path mistakes. `integration/run` builds (or
-takes) a `.gem`, installs it into an isolated `GEM_HOME`, and exercises the
-full v1 surface through that installed gem only:
+## Development
 
 ```bash
-./integration/run                    # builds fast-prometheus.gemspec from the checkout
-./integration/run path/to/some.gem   # tests a specific artifact, e.g. a downloaded release asset
-E2E_REQUIRED=1 ./integration/run     # fail (rather than skip) if prometheus/promtool aren't on PATH
+bundle exec sus
+bundle exec rubocop
+E2E_REQUIRED=1 ./integration/run
 ```
 
-Every pre-release should pass `E2E_REQUIRED=1 ./integration/run <the-tagged-.gem>`
-before the tag graduates.
-
-## Benchmarks
-
-`benchmark-ips` comparisons, single process, Ruby 4.0.5 on Apple M4 Pro
-(arm64-darwin25):
-
-```
-Warming up --------------------------------------
-                counter labels (fast)    98.092k i/100ms
-   counter labels (prometheus-client)    87.610k i/100ms
-                 counter bound (fast)   199.353k i/100ms
-    counter bound (prometheus-client)   155.526k i/100ms
-             histogram observe (fast)   122.910k i/100ms
-histogram observe (prometheus-client)    44.705k i/100ms
-      native histogram observe (fast)   104.543k i/100ms
-Calculating -------------------------------------
-                counter labels (fast)    975.979k (± 0.4%) i/s    (1.02 μs/i) -      1.962M in   2.010126s
-   counter labels (prometheus-client)    878.694k (± 0.5%) i/s    (1.14 μs/i) -      1.840M in   2.093800s
-                 counter bound (fast)      2.001M (± 0.5%) i/s  (499.72 ns/i) -      4.186M in   2.092052s
-    counter bound (prometheus-client)      1.539M (± 2.2%) i/s  (649.93 ns/i) -      3.111M in   2.021608s
-             histogram observe (fast)      1.218M (± 0.9%) i/s  (820.81 ns/i) -      2.458M in   2.017704s
-histogram observe (prometheus-client)    448.711k (± 0.5%) i/s    (2.23 μs/i) -    938.805k in   2.092228s
-      native histogram observe (fast)      1.052M (± 0.3%) i/s  (950.52 ns/i) -      2.195M in   2.086774s
-
-Comparison:
-                 counter bound (fast):  2001103.7 i/s
-    counter bound (prometheus-client):  1538636.6 i/s - 1.30x  slower
-             histogram observe (fast):  1218315.5 i/s - 1.64x  slower
-      native histogram observe (fast):  1052055.9 i/s - 1.90x  slower
-                counter labels (fast):   975978.6 i/s - 2.05x  slower
-   counter labels (prometheus-client):   878694.2 i/s - 2.28x  slower
-histogram observe (prometheus-client):   448710.7 i/s - 4.46x  slower
-```
-
-Key takeaways:
-- Bound counter (fast) is **1.3x** faster than prometheus-client's bound counter
-- Classic histogram observe is **2.7x** faster (1.2M vs 449K i/s)
-- Native histogram observe runs at **1.05M i/s** with no prometheus-client equivalent
+See [how to verify a release build](docs/how-to/verify-a-release.md) for the pre-release rule.

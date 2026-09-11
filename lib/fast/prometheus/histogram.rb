@@ -60,38 +60,34 @@ module Fast
         key = resolve(labels)
         index = @buckets.bsearch_index { |boundary| boundary >= value } || @buckets.size
 
-        slot = store[key] ||= HistogramSlot.new(buckets: @buckets)
+        store.synchronize do
+          slot = store[key] ||= HistogramSlot.new(buckets: @buckets)
 
-        slot.sum += value
-        slot.count += 1
-        slot.cells[index] += 1
+          slot.sum += value
+          slot.count += 1
+          slot.cells[index] += 1
+        end
       end
 
       # Cumulative bucket counts for a specific series (delegates to slot).
       def cumulative_buckets(labels: {})
-        return unless (slot = get(labels: labels))
-
-        slot.cumulative_buckets
+        store.synchronize { get(labels: labels)&.cumulative_buckets }
       end
 
       # Get the slot for a label set, or nil if no observations recorded.
       def get(labels: {})
         key = resolve(labels)
-        store[key]
+        store.synchronize { store[key] }
       end
 
       # Reader for sum of a specific series.
       def sum(labels: {})
-        return unless (slot = get(labels: labels))
-
-        slot.sum
+        store.synchronize { get(labels: labels)&.sum }
       end
 
       # Reader for count of a specific series.
       def count(labels: {})
-        return unless (slot = get(labels: labels))
-
-        slot.count
+        store.synchronize { get(labels: labels)&.count }
       end
 
       def self.linear_buckets(start:, width:, count:)

@@ -123,23 +123,38 @@ describe Fast::Prometheus::Formats::Protobuf do
     end
   end
 
-  describe ".build_spans_deltas" do
-    it "worked example: [[1, 3], [2, 1], [5, 4]]" do
-      spans, deltas = Fast::Prometheus::Formats::Protobuf.build_spans_deltas([[1, 3], [2, 1], [5, 4]])
-      expect(spans.map { |s| [s.offset, s.length] }).to be(:==, [[1, 2], [2, 1]])
-      expect(deltas).to be(:==, [3, -2, 3])
+  describe "native histogram spans and deltas" do
+    def render_native(positive_buckets)
+      value = Fast::Prometheus::NativeHistogramValue.new(
+        schema: 3, zero_threshold: 2.0**-128, zero_count: 0, sum: 0.0,
+        count: positive_buckets.sum { |_, count| count },
+        positive_buckets: positive_buckets, negative_buckets: []
+      )
+      metric = Fast::Prometheus::MetricSnapshot.new(
+        name: :h, docstring: "h", type: :native_histogram, label_names: [],
+        series: [Fast::Prometheus::Series.new(labels: {}, value: value)]
+      )
+      snapshot = Fast::Prometheus::Snapshot.new(metrics: [metric], taken_at: Time.now)
+      frames = split_frames(Fast::Prometheus::Formats::Protobuf.render(snapshot))
+      Io::Prometheus::Client::MetricFamily.decode(frames[0]).metric[0].histogram
     end
 
-    it "handles empty buckets" do
-      spans, deltas = Fast::Prometheus::Formats::Protobuf.build_spans_deltas([])
-      expect(spans).to be(:==, [])
-      expect(deltas).to be(:==, [])
+    it "encodes ascending sparse buckets as spans and deltas" do
+      histogram = render_native([[1, 3], [2, 1], [5, 4]])
+      expect(histogram.positive_span.map { |s| [s.offset, s.length] }).to be(:==, [[1, 2], [2, 1]])
+      expect(histogram.positive_delta.to_a).to be(:==, [3, -2, 3])
     end
 
-    it "handles single bucket" do
-      spans, deltas = Fast::Prometheus::Formats::Protobuf.build_spans_deltas([[0, 5]])
-      expect(spans.map { |s| [s.offset, s.length] }).to be(:==, [[0, 1]])
-      expect(deltas).to be(:==, [5])
+    it "encodes no buckets as no spans" do
+      histogram = render_native([])
+      expect(histogram.positive_span.to_a).to be(:==, [])
+      expect(histogram.positive_delta.to_a).to be(:==, [])
+    end
+
+    it "encodes a single bucket as one span" do
+      histogram = render_native([[0, 5]])
+      expect(histogram.positive_span.map { |s| [s.offset, s.length] }).to be(:==, [[0, 1]])
+      expect(histogram.positive_delta.to_a).to be(:==, [5])
     end
   end
 end

@@ -2,6 +2,7 @@
 
 require "fast/prometheus"
 require "protocol/http/middleware"
+require "fast/prometheus/request_metrics"
 
 module Fast
   module Prometheus
@@ -11,47 +12,21 @@ module Fast
       class Instrumentation < Protocol::HTTP::Middleware
         def initialize(delegate, registry: Fast::Prometheus.registry, native: false, prefix: "http_server")
           super(delegate)
-          @registry = registry
-          @native = native
-          @prefix = prefix
-          @counter = ensure_counter
-          @histogram = ensure_histogram
+          @metrics = RequestMetrics.new(registry: registry, native: native, prefix: prefix)
         end
 
         def call(request)
           start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
           response = super
-          record(request.method, response.status.to_s, start)
+          @metrics.record(request.method, response.status.to_s, start)
           response
-        rescue StandardError
-          record(request.method, "500", start)
-          raise
-        end
-
-        private
-
-        def record(method, status, start)
-          labels = { method: method, status: status }
-          duration = Process.clock_gettime(Process::CLOCK_MONOTONIC) - start
-          @counter.increment(labels: labels)
-          @histogram.observe(duration, labels: labels)
-        end
-
-        def ensure_counter
-          name = :"#{@prefix}_requests_total"
-          @registry.get(name) || @registry.counter(name, docstring: "Total HTTP requests", labels: %i[method status])
-        end
-
-        def ensure_histogram
-          name = :"#{@prefix}_request_duration_seconds"
-          existing = @registry.get(name)
-          return existing if existing
-
-          if @native
-            @registry.native_histogram(name, docstring: "HTTP request duration in seconds", labels: %i[method status])
-          else
-            @registry.histogram(name, docstring: "HTTP request duration in seconds", labels: %i[method status])
+        rescue StandardError => e
+          begin
+            @metrics.record(request.method, "500", start)
+          rescue StandardError
+            nil
           end
+          raise e
         end
       end
     end

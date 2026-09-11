@@ -15,7 +15,7 @@ module Fast
         return if by.zero?
 
         key = resolve(labels)
-        store[key] = (store[key] || 0.0) + by.to_f
+        store.synchronize { store[key] = (store[key] || 0.0) + by.to_f }
       end
     end
   end

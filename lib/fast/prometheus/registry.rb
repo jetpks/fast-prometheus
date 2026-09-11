@@ -14,30 +14,52 @@ module Fast
     class Registry
       def initialize
         @by_name = {}
+        @lock = Mutex.new
       end
 
       # Register a metric. Raises DuplicateMetric if a metric with the same name
       # is already registered. Returns the metric.
       def register(metric)
-        raise DuplicateMetric, "metric #{metric.name} already registered" if @by_name.key?(metric.name)
+        @lock.synchronize do
+          raise DuplicateMetric, "metric #{metric.name} already registered" if @by_name.key?(metric.name)
 
-        @by_name[metric.name] = metric
-        metric
+          @by_name[metric.name] = metric
+          metric
+        end
       end
 
       # Remove a metric by name.
       def unregister(name)
-        @by_name.delete(name)
+        @lock.synchronize { @by_name.delete(name) }
       end
 
       # Look up a metric by name, or nil.
       def get(name)
-        @by_name[name]
+        @lock.synchronize { @by_name[name] }
+      end
+
+      # Atomic fetch-or-register: returns the metric already registered under
+      # +name+, else registers and returns the block's metric. The block runs
+      # only when +name+ is absent, inside the same lock hold as the lookup,
+      # so concurrent callers for one absent name never race each other into
+      # DuplicateMetric. Raises ArgumentError if the block's metric is not
+      # named +name+.
+      def fetch_or_register(name)
+        @lock.synchronize do
+          next @by_name[name] if @by_name.key?(name)
+
+          metric = yield
+          unless metric.name == name
+            raise ArgumentError, "fetch_or_register(#{name.inspect}) block built #{metric.name.inspect}"
+          end
+
+          @by_name[name] = metric
+        end
       end
 
       # Return the registered metrics, insertion order.
       def metrics
-        @by_name.values
+        @lock.synchronize { @by_name.values }
       end
 
       # Convenience: build, register, and return a Counter.
@@ -65,15 +87,21 @@ module Fast
         register(NativeHistogram.new(name, **kwargs))
       end
 
-      # Collect an immutable snapshot of all registered metrics.
+      # Collect an immutable snapshot of all registered metrics. The registry
+      # lock only covers copying the metric list; each metric's own snapshot
+      # is built under its own store lock (see Snapshot.of).
       def collect
         Snapshot.of(metrics)
       end
     end
 
-    # Module-level default registry (fiber-safe under cooperative scheduling).
+    @registry_lock = Mutex.new
+
+    # Module-level default registry. Constructed at most once across threads:
+    # the fast path is an unsynchronized read (safe under the GVL), and only
+    # the first caller pays for the lock.
     def self.registry
-      @registry ||= Registry.new
+      @registry || @registry_lock.synchronize { @registry ||= Registry.new }
     end
 
     def self.registry=(registry)

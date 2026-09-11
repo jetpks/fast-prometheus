@@ -1,25 +1,26 @@
 # frozen_string_literal: true
 
 require "fast/prometheus"
-require "fast/prometheus/middleware/instrumentation"
-require "sus/fixtures/async/http/server_context"
+require "fast/prometheus/rack/instrumentation"
+require "rack/lint"
+require "rack/mock_request"
 
-describe Fast::Prometheus::Middleware::Instrumentation do
-  include Sus::Fixtures::Async::HTTP::ServerContext
-
+describe Fast::Prometheus::Rack::Instrumentation do
   let(:registry) { Fast::Prometheus::Registry.new }
-  let(:delegate) { Protocol::HTTP::Middleware::HelloWorld }
+  let(:delegate) { ->(_env) { [200, { "content-type" => "text/plain" }, ["hello"]] } }
 
   def middleware
-    Fast::Prometheus::Middleware::Instrumentation.new(delegate, registry: registry)
+    Fast::Prometheus::Rack::Instrumentation.new(::Rack::Lint.new(delegate), registry: registry)
+  end
+
+  def request
+    ::Rack::MockRequest.new(::Rack::Lint.new(middleware))
   end
 
   describe "normal request" do
     it "increments counter and observes histogram" do
-      request = Protocol::HTTP::Request["GET", "/hello"]
-      response = client.call(request)
-      response.read
-      response.close
+      response = request.get("/hello")
+      expect(response.status).to be(:==, 200)
 
       counter = registry.get(:http_server_requests_total)
       expect(counter.get(labels: { method: "GET", status: "200" })).to be(:==, 1.0)
@@ -31,17 +32,12 @@ describe Fast::Prometheus::Middleware::Instrumentation do
   end
 
   describe "native: true" do
-    let(:registry) { Fast::Prometheus::Registry.new }
-
     def middleware
-      Fast::Prometheus::Middleware::Instrumentation.new(delegate, registry: registry, native: true)
+      Fast::Prometheus::Rack::Instrumentation.new(::Rack::Lint.new(delegate), registry: registry, native: true)
     end
 
     it "registers a NativeHistogram" do
-      request = Protocol::HTTP::Request["GET", "/hello"]
-      response = client.call(request)
-      response.read
-      response.close
+      request.get("/hello")
 
       metric = registry.get(:http_server_request_duration_seconds)
       expect(metric).to be(:instance_of?, Fast::Prometheus::NativeHistogram)
@@ -51,13 +47,11 @@ describe Fast::Prometheus::Middleware::Instrumentation do
   describe "raising delegate" do
     it "records status 500 and re-raises" do
       registry = Fast::Prometheus::Registry.new
-      delegate = Protocol::HTTP::Middleware.for do |_request|
-        raise "boom"
-      end
-      middleware = Fast::Prometheus::Middleware::Instrumentation.new(delegate, registry: registry)
+      raising_delegate = ->(_env) { raise "boom" }
+      middleware = Fast::Prometheus::Rack::Instrumentation.new(raising_delegate, registry: registry)
+      env = { "REQUEST_METHOD" => "GET", "PATH_INFO" => "/error" }
 
-      request = Protocol::HTTP::Request["GET", "/error"]
-      expect { middleware.call(request) }.to raise_exception(RuntimeError, message: be(:==, "boom"))
+      expect { middleware.call(env) }.to raise_exception(RuntimeError, message: be(:==, "boom"))
 
       counter = registry.get(:http_server_requests_total)
       expect(counter.get(labels: { method: "GET", status: "500" })).to be(:==, 1.0)
@@ -66,13 +60,11 @@ describe Fast::Prometheus::Middleware::Instrumentation do
     it "propagates the delegate's exception even when recording fails" do
       registry = Fast::Prometheus::Registry.new
       registry.counter(:http_server_requests_total, docstring: "x", labels: [:path])
-      delegate = Protocol::HTTP::Middleware.for do |_request|
-        raise "boom"
-      end
-      middleware = Fast::Prometheus::Middleware::Instrumentation.new(delegate, registry: registry)
+      raising_delegate = ->(_env) { raise "boom" }
+      middleware = Fast::Prometheus::Rack::Instrumentation.new(raising_delegate, registry: registry)
+      env = { "REQUEST_METHOD" => "GET", "PATH_INFO" => "/error" }
 
-      request = Protocol::HTTP::Request["GET", "/error"]
-      expect { middleware.call(request) }.to raise_exception(RuntimeError, message: be(:==, "boom"))
+      expect { middleware.call(env) }.to raise_exception(RuntimeError, message: be(:==, "boom"))
     end
   end
 
@@ -81,7 +73,7 @@ describe Fast::Prometheus::Middleware::Instrumentation do
       registry = Fast::Prometheus::Registry.new
 
       threads = 8.times.map do
-        Thread.new { Fast::Prometheus::Middleware::Instrumentation.new(delegate, registry: registry) }
+        Thread.new { Fast::Prometheus::Rack::Instrumentation.new(delegate, registry: registry) }
       end
       threads.each(&:value)
 

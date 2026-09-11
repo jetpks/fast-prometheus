@@ -1,0 +1,196 @@
+PATH
+  remote: ../..
+  specs:
+    fast-prometheus (0.1.0.pre.1)
+      async (>= 2.38)
+      async-grpc (~> 0.7)
+      async-http (~> 0.95)
+      console (~> 1.37)
+      google-protobuf (~> 4.35)
+      protocol-http (~> 0.60)
+
+GEM
+  remote: https://rubygems.org/
+  specs:
+    async (2.45.1)
+      console (~> 1.29)
+      fiber-annotation
+      io-event (~> 1.21)
+    async-container (0.38.0)
+      async (~> 2.44)
+    async-grpc (0.9.1)
+      async (>= 2.38.0)
+      async-http
+      protocol-grpc (~> 0.14)
+      protocol-http (~> 0.60)
+    async-http (0.104.0)
+      async (>= 2.35.1)
+      async-pool (~> 0.12)
+      io-endpoint (~> 0.18)
+      io-stream (~> 0.14)
+      protocol-http (~> 0.66)
+      protocol-http1 (~> 0.41)
+      protocol-http2 (~> 0.28)
+      protocol-url (~> 0.2)
+    async-http-cache (0.4.6)
+      async-http (~> 0.56)
+    async-pool (0.12.0)
+      async (>= 2.0)
+    async-service (0.25.0)
+      async
+      async-container (~> 0.34)
+      string-format (~> 0.2)
+    async-utilization (0.5.0)
+      console (~> 1.0)
+    bake (0.25.0)
+      bigdecimal
+      samovar (~> 2.1)
+    base64 (0.3.0)
+    bigdecimal (4.1.2)
+    console (1.37.0)
+      fiber-annotation
+      fiber-local (~> 1.1)
+      json
+    falcon (0.55.5)
+      async
+      async-container (~> 0.20)
+      async-http (~> 0.75)
+      async-http-cache (~> 0.4)
+      async-service (~> 0.19)
+      async-utilization (~> 0.3)
+      bundler
+      localhost (~> 1.1)
+      openssl (>= 3.0)
+      protocol-http (~> 0.31)
+      protocol-rack (~> 0.7)
+      samovar (~> 2.3)
+    fiber-annotation (0.2.0)
+    fiber-local (1.1.0)
+      fiber-storage
+    fiber-storage (1.0.1)
+    google-protobuf (4.36.1)
+      bigdecimal
+      rake (~> 13.3)
+    google-protobuf (4.36.1-aarch64-linux-gnu)
+      bigdecimal
+      rake (~> 13.3)
+    google-protobuf (4.36.1-aarch64-linux-musl)
+      bigdecimal
+      rake (~> 13.3)
+    google-protobuf (4.36.1-arm64-darwin)
+      bigdecimal
+      rake (~> 13.3)
+    google-protobuf (4.36.1-x86-linux-gnu)
+      bigdecimal
+      rake (~> 13.3)
+    google-protobuf (4.36.1-x86-linux-musl)
+      bigdecimal
+      rake (~> 13.3)
+    google-protobuf (4.36.1-x86_64-darwin)
+      bigdecimal
+      rake (~> 13.3)
+    google-protobuf (4.36.1-x86_64-linux-gnu)
+      bigdecimal
+      rake (~> 13.3)
+    google-protobuf (4.36.1-x86_64-linux-musl)
+      bigdecimal
+      rake (~> 13.3)
+    io-endpoint (0.18.0)
+      openssl (>= 3.3.0)
+    io-event (1.22.0)
+    io-stream (0.14.0)
+      openssl (>= 3.3)
+    json (3.0.2)
+    localhost (1.8.0)
+      bake
+    openssl (4.0.2)
+    protocol-grpc (0.15.0)
+      async (~> 2)
+      base64
+      google-protobuf
+      protocol-http (~> 0.56)
+    protocol-hpack (1.5.1)
+    protocol-http (0.71.0)
+    protocol-http1 (0.41.0)
+      protocol-http (~> 0.68)
+    protocol-http2 (0.28.0)
+      protocol-hpack (~> 1.4)
+      protocol-http (~> 0.62)
+    protocol-rack (0.23.0)
+      console (~> 1.0)
+      io-stream (>= 0.10)
+      protocol-http (~> 0.58)
+      rack (>= 1.0)
+    protocol-url (0.19.0)
+    rack (3.2.7)
+    rake (13.4.2)
+    samovar (2.5.1)
+      console (~> 1.0)
+    string-format (0.2.0)
+    traces (0.18.2)
+
+PLATFORMS
+  aarch64-linux-gnu
+  aarch64-linux-musl
+  arm64-darwin
+  ruby
+  x86-linux-gnu
+  x86-linux-musl
+  x86_64-darwin
+  x86_64-linux-gnu
+  x86_64-linux-musl
+
+DEPENDENCIES
+  falcon (= 0.55.5)
+  fast-prometheus!
+  traces
+
+CHECKSUMS
+  async (2.45.1) sha256=95849f7432eca535146c69f3078dab3c7228d0075ed71f48733f3e585dd7c267
+  async-container (0.38.0) sha256=71479d8551870d684e602f463d7b8368909c835a64e38b555e1821512ffffc88
+  async-grpc (0.9.1) sha256=1a03aae7daf556a3b5c6f34e7e1b3259ed6ceaeeeb92f1228d7b3f603fe89564
+  async-http (0.104.0) sha256=c5f436fe7778cee07031770b232d9feb412f1d80287a0b5dcbd1f6335a52ce6f
+  async-http-cache (0.4.6) sha256=2038d1f093182f16b50b4db271c25085e3938da10bfcfc2904cadb0530fddfd6
+  async-pool (0.12.0) sha256=5580493dc024bd704dab2ed0bf1307100722e49cbb825c7965f8501194f58506
+  async-service (0.25.0) sha256=71d9d75c2898dddf6549150cecd57156453e5b61da69fa87f10a0c97becfb6d1
+  async-utilization (0.5.0) sha256=96c347634e09edcbcb7f70cf8c5a1ae058c64d88186341e3f924a44440f95981
+  bake (0.25.0) sha256=a47bdc6a26addc048827debc36fe27bb4d5d71ac2958ad910b5386e9baf49869
+  base64 (0.3.0) sha256=27337aeabad6ffae05c265c450490628ef3ebd4b67be58257393227588f5a97b
+  bigdecimal (4.1.2) sha256=53d217666027eab4280346fba98e7d5b66baaae1b9c3c1c0ffe89d48188a3fbd
+  bundler (4.0.20) sha256=7978a8ac648767f5e635bc522445b79e80a52b907a39a36c2d8085ed6bc762ae
+  console (1.37.0) sha256=8093b286c2595a063849c098594fee5155ecc7967d36f3aa8cbe7569c8f3efd7
+  falcon (0.55.5) sha256=8622db11361b6678578dd7e06b953aaef10e5006929ced618069bb62b0ff118d
+  fast-prometheus (0.1.0.pre.1)
+  fiber-annotation (0.2.0) sha256=7abfadf1d119f508867d4103bf231c0354d019cc39a5738945dec2edadaf6c03
+  fiber-local (1.1.0) sha256=c885f94f210fb9b05737de65d511136ea602e00c5105953748aa0f8793489f06
+  fiber-storage (1.0.1) sha256=f48e5b6d8b0be96dac486332b55cee82240057065dc761c1ea692b2e719240e1
+  google-protobuf (4.36.1) sha256=893ac9d66b36b6ea50da5418f856bc7c2d2072099a578aeefc2d7757dcab6a77
+  google-protobuf (4.36.1-aarch64-linux-gnu) sha256=3883fa1b0e99221f68f4a8511bc4fb1888897dcb6cc8bf2805c92c16fc99b499
+  google-protobuf (4.36.1-aarch64-linux-musl) sha256=6da393554ecc96168ae6ddf663392bf8ce4e4fce7c18fda348882ce2e97d6a87
+  google-protobuf (4.36.1-arm64-darwin) sha256=4d82184f4582dfa123f9793cd7a73beca9b0d3f0d3717948c4120b6cc0d50f2d
+  google-protobuf (4.36.1-x86-linux-gnu) sha256=4ea208a8d1a2369728da03e256fc7b454c6781bac486cbfa57d0ed7a0e6352f0
+  google-protobuf (4.36.1-x86-linux-musl) sha256=ec302210ea53f136027f556904b0d13eaf7b4d17fd88b15ddd64b2f321c85dfd
+  google-protobuf (4.36.1-x86_64-darwin) sha256=e92bf3c90c0a9c410cbe430cf366190b1b9b5b2b784f6195a43a178c2ef7e338
+  google-protobuf (4.36.1-x86_64-linux-gnu) sha256=e735a3f3d6596b1010013c2030778bc030770e659106fe7e4ae0f07631b551cb
+  google-protobuf (4.36.1-x86_64-linux-musl) sha256=ae2712b7960e8b1f96d52fef8c2c0dc1cd230f2be13e48492dad0aa2a6a7cf03
+  io-endpoint (0.18.0) sha256=720d186bcd584e8ba490bfc91dab332cc3c5ffee848b5b03894555cb275151aa
+  io-event (1.22.0) sha256=4936d38dfcf2291d897707fd94690f1a63fdb1ea3ab4fa63c6739fc6c61e1534
+  io-stream (0.14.0) sha256=07d9b13ea2066ccbbc761fff8d69ad5a31e47561d31e02cc271f3ed9c1a8f1cd
+  json (3.0.2) sha256=8e6d7e7b11384c21230430cef90b71f14849a34a1f4452796670f7c981bd19df
+  localhost (1.8.0) sha256=df7ea825b4f64949c588c17efac86bc47ddc4460d723778abe933b71759b2701
+  openssl (4.0.2) sha256=1037ad2868ae58df9ad917891c0c0f9815a1172f6846d4bcdd508e4c2ee747c2
+  protocol-grpc (0.15.0) sha256=16c313dc73809bba449b5fe56ca5c5e4dacaaaed590e249d67cf9311b2dcd222
+  protocol-hpack (1.5.1) sha256=6feca238b8078da1cd295677d6f306c6001af92d75fe0643d33e6956cbc3ad91
+  protocol-http (0.71.0) sha256=38577bf3df0bf0c3f7ee7e21b43fcb4bd7624e36f697dbe9c3eea344f14bd9ba
+  protocol-http1 (0.41.0) sha256=9863874a1228948a896c3e7ea16d13a680c8f3ed50706007c78b7033018b0ea3
+  protocol-http2 (0.28.0) sha256=b7c6195dcfa80ec2484670e9fd8fc21024cc654a391aa0792433aff1188c1691
+  protocol-rack (0.23.0) sha256=63eec3341b20565b3dd155345fd1426ecbbed322cdc8a6accc993905388c03d7
+  protocol-url (0.19.0) sha256=3f6b9f6aa742a259a0b3610fbbd9685dcd9506adf6734f428ff96259faabfb21
+  rack (3.2.7) sha256=93e13e1c24f93556671d85d2d79fa228c3485815c50d7e2f265b5330c6528fb7
+  rake (13.4.2) sha256=cb825b2bd5f1f8e91ca37bddb4b9aaf345551b4731da62949be002fa89283701
+  samovar (2.5.1) sha256=8a9fc41eb8868084f0321eb41678c485cfbc7d282fb306c0be67c3284b1d2394
+  string-format (0.2.0) sha256=bc981c14116b061f12134549f32fa2d61a17b5a35dd6fd36596c21722a789af6
+  traces (0.18.2) sha256=80f1649cb4daace1d7174b81f3b3b7427af0b93047759ba349960cb8f315e214
+
+BUNDLED WITH
+  4.0.20

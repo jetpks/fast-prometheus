@@ -10,6 +10,7 @@ group :test do
   gem "sus-fixtures-async-http"
   gem "covered"
   gem "rubocop"
+  gem "rack", "~> 3.1"
 end
 
 group :benchmark do

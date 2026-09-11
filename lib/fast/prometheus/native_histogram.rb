@@ -68,47 +68,49 @@ module Fast
         v = value.to_f
         key = resolve(labels)
 
-        slot = store[key] ||= Slot.new(schema: @schema, zero_threshold: @zero_threshold)
+        store.synchronize do
+          slot = store[key] ||= Slot.new(schema: @schema, zero_threshold: @zero_threshold)
 
-        # Determine bucket placement BEFORE mutating count/sum (no partial mutation).
-        if v.nan?
-          # NaN: count/sum only, no bucket.
-          side = nil
-          idx = nil
-        elsif v.infinite?
-          # ±Inf: clamp to MAX_BUCKET_INDEX.
-          side = v.positive? ? :positive : :negative
-          idx = MAX_BUCKET_INDEX
-        elsif v.abs <= slot.zero_threshold
-          side = :zero
-          idx = nil
-        elsif v.positive?
-          side = :positive
-          idx = index_for(v, slot.schema)
-        else
-          side = :negative
-          idx = index_for(-v, slot.schema)
+          # Determine bucket placement BEFORE mutating count/sum (no partial mutation).
+          if v.nan?
+            # NaN: count/sum only, no bucket.
+            side = nil
+            idx = nil
+          elsif v.infinite?
+            # ±Inf: clamp to MAX_BUCKET_INDEX.
+            side = v.positive? ? :positive : :negative
+            idx = MAX_BUCKET_INDEX
+          elsif v.abs <= slot.zero_threshold
+            side = :zero
+            idx = nil
+          elsif v.positive?
+            side = :positive
+            idx = index_for(v, slot.schema)
+          else
+            side = :negative
+            idx = index_for(-v, slot.schema)
+          end
+
+          slot.sum += v
+          slot.count += 1
+
+          case side
+          when :zero
+            slot.zero_count += 1
+          when :positive
+            slot.positive[idx] = (slot.positive[idx] || 0) + 1
+          when :negative
+            slot.negative[idx] = (slot.negative[idx] || 0) + 1
+          end
+
+          downscale(slot) while slot.positive.size + slot.negative.size > @max_buckets && slot.schema > -4
         end
-
-        slot.sum += v
-        slot.count += 1
-
-        case side
-        when :zero
-          slot.zero_count += 1
-        when :positive
-          slot.positive[idx] = (slot.positive[idx] || 0) + 1
-        when :negative
-          slot.negative[idx] = (slot.negative[idx] || 0) + 1
-        end
-
-        downscale(slot) while slot.positive.size + slot.negative.size > @max_buckets && slot.schema > -4
       end
 
       # Get the slot for a label set, or nil if no observations recorded.
       def get(labels: {})
         key = resolve(labels)
-        store[key]
+        store.synchronize { store[key] }
       end
 
       protected
