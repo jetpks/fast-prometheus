@@ -19,6 +19,8 @@ module Integration
       ["formats/protobuf", "require-formats-protobuf"],
       ["middleware/exporter", "require-middleware-exporter"],
       ["middleware/instrumentation", "require-middleware-instrumentation"],
+      ["rack/exporter", "require-rack-exporter"],
+      ["rack/instrumentation", "require-rack-instrumentation"],
       ["otlp/http_exporter", "require-otlp-http-exporter"],
       ["otlp/grpc_exporter", "require-otlp-grpc-exporter"],
       ["otlp/push", "require-otlp-push"]
@@ -27,7 +29,7 @@ module Integration
     ALL_CHECK_IDS = (
       %w[provenance core-require-io-free] +
       OPT_IN_ENTRIES.map(&:last) +
-      %w[metric-surface registry text-promtool protobuf-roundtrip middleware
+      %w[metric-surface registry text-promtool protobuf-roundtrip middleware rack
          e2e-scrape e2e-otlp-http e2e-otlp-grpc]
     ).freeze
 
@@ -65,6 +67,7 @@ module Integration
         end
         run_script("behavioral_surface.rb", %w[metric-surface registry text-promtool protobuf-roundtrip])
         run_script("middleware.rb", ["middleware"])
+        run_script("rack.rb", ["rack"])
         run_script("e2e_scrape.rb", ["e2e-scrape"])
         run_script("e2e_otlp_http.rb", ["e2e-otlp-http"])
         run_script("e2e_otlp_grpc.rb", ["e2e-otlp-grpc"])
