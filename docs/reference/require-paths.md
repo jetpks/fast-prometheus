@@ -9,6 +9,8 @@
 | `fast/prometheus/formats/protobuf` | core, google-protobuf |
 | `fast/prometheus/middleware/exporter` | core, protocol-http, both formats |
 | `fast/prometheus/middleware/instrumentation` | core, protocol-http |
+| `fast/prometheus/rack/exporter` | core, both formats, zlib |
+| `fast/prometheus/rack/instrumentation` | core |
 | `fast/prometheus/otlp/mapper` | core, vendored OTLP protos |
 | `fast/prometheus/otlp/http_exporter` | core, async-http |
 | `fast/prometheus/otlp/grpc_exporter` | core, async-http, async-grpc |
