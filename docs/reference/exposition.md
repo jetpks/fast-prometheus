@@ -36,7 +36,7 @@ Methods
 
 | Signature | Returns | Notes |
 |---|---|---|
-| `call(request)` | `Protocol::HTTP::Response` | Serves metrics for a `GET` at `path`; otherwise delegates to the wrapped app. Negotiation and gzip are delegated to `Exposition.render`. |
+| `call(request)` | `Protocol::HTTP::Response` | Serves metrics for a `GET` at `path`; otherwise delegates to the wrapped app. Response headers carry `content-type` (`Formats::Protobuf::CONTENT_TYPE` when the request's `accept` header includes `"application/vnd.google.protobuf"`, else `Formats::Text::CONTENT_TYPE`) and, when the request's `accept-encoding` header includes `"gzip"`, `content-encoding: gzip` with a gzipped body. |
 
 ## `Middleware::Instrumentation`
 
@@ -103,4 +103,4 @@ Methods
 |---|---|---|
 | `call(env)` | Rack triple | Times and calls `app.call(env)`, then records it with `method: env["REQUEST_METHOD"]` and the returned status as a String. On `app.call` raising, records the request with `status: "500"` and re-raises the original exception. |
 
-Metric names, types and labels are the same as `Middleware::Instrumentation` (above) — both are built on `RequestMetrics`, so a metric pre-registered under either name on the same registry is reused by whichever surface runs second.
+Metric names, types and labels are the same as `Middleware::Instrumentation` (above); a metric already registered under either name on the same registry is reused by whichever surface runs second, not re-registered.
