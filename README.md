@@ -94,9 +94,9 @@ Single process, locked, thread-safe by default (`benchmark-ips` comparisons
 against `prometheus-client`; see [the benchmarks page](docs/explanation/benchmarks.md) for the
 full run and conditions):
 
-- Bound counter (fast) is on par with prometheus-client's bound counter (1.03x)
-- Classic histogram observe is **3.0x** faster (1.72M vs 565K i/s)
-- Native histogram observe runs at **1.36M i/s** with no prometheus-client equivalent
+- Bound counter (fast) is on par with prometheus-client's bound counter (1.04x)
+- Classic histogram observe is **3.0x** faster (1.71M vs 566K i/s)
+- Native histogram observe runs at **1.35M i/s** with no prometheus-client equivalent
 
 ## Development
 
