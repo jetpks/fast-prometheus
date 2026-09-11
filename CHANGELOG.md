@@ -32,6 +32,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Minimum Ruby lowered from 3.4 to 3.3 (`required_ruby_version >= 3.3`); the
+  test suite, RuboCop, the integration harness and the thread-safety stress
+  harness all pass on 3.3.12 and 4.0.5, and CI now runs the suite on both.
 - `Registry` and every metric type are now safe to share across OS threads by
   default: each metric's per-series store is guarded by its own lock (shared
   by `with_labels`-bound metrics), snapshot construction observes every
