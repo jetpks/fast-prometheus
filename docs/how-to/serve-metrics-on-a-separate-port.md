@@ -10,6 +10,8 @@ can sit behind auth or a load balancer that never sees `/metrics`. You need fast
    so nothing except `/metrics` answers on this port:
 
    ```ruby
+   require "fast/prometheus/middleware/exporter"
+
    metrics_app = Fast::Prometheus::Middleware::Exporter.new(Protocol::HTTP::Middleware::NotFound)
    ```
 
@@ -96,8 +98,9 @@ can sit behind auth or a load balancer that never sees `/metrics`. You need fast
 
 ## Result
 
-The app port and the metrics port are independent `Async::HTTP::Server`s sharing one registry
-and one reactor; the app port never serves `/metrics`.
+The app port and the metrics port are independent `Async::HTTP::Server`s sharing one registry —
+on one reactor in step 2, on each worker's reactor under Falcon in step 3; the app port never
+serves `/metrics`.
 
 See [Reference: exposition formats and HTTP middleware](../reference/exposition.md) for
 `Middleware::Exporter`.

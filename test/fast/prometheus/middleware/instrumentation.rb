@@ -57,7 +57,7 @@ describe Fast::Prometheus::Middleware::Instrumentation do
       middleware = Fast::Prometheus::Middleware::Instrumentation.new(delegate, registry: registry)
 
       request = Protocol::HTTP::Request["GET", "/error"]
-      expect { middleware.call(request) }.to raise_exception(RuntimeError, message: be == "boom")
+      expect { middleware.call(request) }.to raise_exception(RuntimeError, message: be(:==, "boom"))
 
       counter = registry.get(:http_server_requests_total)
       expect(counter.get(labels: { method: "GET", status: "500" })).to be(:==, 1.0)
@@ -72,7 +72,7 @@ describe Fast::Prometheus::Middleware::Instrumentation do
       middleware = Fast::Prometheus::Middleware::Instrumentation.new(delegate, registry: registry)
 
       request = Protocol::HTTP::Request["GET", "/error"]
-      expect { middleware.call(request) }.to raise_exception(RuntimeError, message: be == "boom")
+      expect { middleware.call(request) }.to raise_exception(RuntimeError, message: be(:==, "boom"))
     end
   end
 

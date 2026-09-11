@@ -51,7 +51,7 @@ describe Fast::Prometheus::Rack::Instrumentation do
       middleware = Fast::Prometheus::Rack::Instrumentation.new(raising_delegate, registry: registry)
       env = { "REQUEST_METHOD" => "GET", "PATH_INFO" => "/error" }
 
-      expect { middleware.call(env) }.to raise_exception(RuntimeError, message: be == "boom")
+      expect { middleware.call(env) }.to raise_exception(RuntimeError, message: be(:==, "boom"))
 
       counter = registry.get(:http_server_requests_total)
       expect(counter.get(labels: { method: "GET", status: "500" })).to be(:==, 1.0)
@@ -64,7 +64,7 @@ describe Fast::Prometheus::Rack::Instrumentation do
       middleware = Fast::Prometheus::Rack::Instrumentation.new(raising_delegate, registry: registry)
       env = { "REQUEST_METHOD" => "GET", "PATH_INFO" => "/error" }
 
-      expect { middleware.call(env) }.to raise_exception(RuntimeError, message: be == "boom")
+      expect { middleware.call(env) }.to raise_exception(RuntimeError, message: be(:==, "boom"))
     end
   end
 
