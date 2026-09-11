@@ -42,20 +42,18 @@ require "fast/prometheus/middleware/exporter"
 require "protocol/http/middleware"
 require "protocol/rack/constants"
 
-class App < Protocol::HTTP::Middleware
-  def call(request)
-    case request.path
-    when "/"
-      Protocol::HTTP::Response[200, {}, ["hello"]]
-    when "/work"
-      Protocol::HTTP::Response[200, {}, ["did work"]]
-    else
-      Protocol::HTTP::Response[404, {}, ["not found"]]
-    end
+app = Protocol::HTTP::Middleware.for do |request|
+  case request.path
+  when "/"
+    Protocol::HTTP::Response[200, {}, ["hello"]]
+  when "/work"
+    Protocol::HTTP::Response[200, {}, ["did work"]]
+  else
+    Protocol::HTTP::Response[404, {}, ["not found"]]
   end
 end
 
-app = Fast::Prometheus::Middleware::Instrumentation.new(App.new(nil), native: true)
+app = Fast::Prometheus::Middleware::Instrumentation.new(app, native: true)
 app = Fast::Prometheus::Middleware::Exporter.new(app)
 
 # Falcon's config.ru is a Rack boundary; protocol-rack injects the original
@@ -66,7 +64,7 @@ run lambda { |env|
 }
 ```
 
-`App` is a tiny `Protocol::HTTP` app with two routes. `Instrumentation` wraps it to record
+The block is a tiny `Protocol::HTTP` app with two routes. `Instrumentation` wraps it to record
 request counts and durations (`native: true` records the duration as a native histogram
 instead of a classic one); `Exporter` adds the `/metrics` endpoint. Both default to
 `Fast::Prometheus.registry`, the module-level registry, so no `registry:` keyword is
@@ -188,7 +186,13 @@ $ curl 'http://localhost:9090/api/v1/query?query=http_server_request_duration_se
           {
             "count": "13",
             "sum": "0.00005199981387704611",
-            "buckets": [[0, "0.0000019073486328125", "0.0000020799784329705385", "3"]]
+            "buckets": [
+              [0, "0.0000019073486328125", "0.0000020799784329705385", "3"],
+              [0, "0.000002941533709350473", "0.000003207765255942209", "6"],
+              [0, "0.000003814697265625", "0.000004159956865941077", "2"],
+              [0, "0.0000069961856323598564", "0.00000762939453125", "1"],
+              [0, "0.000012831061023768835", "0.000013992371264719713", "1"]
+            ]
           }
         ]
       }

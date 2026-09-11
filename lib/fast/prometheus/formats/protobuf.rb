@@ -24,7 +24,7 @@ module Fast
           end
         end
 
-        def self.build_metric_family(metric_snapshot)
+        private_class_method def self.build_metric_family(metric_snapshot)
           Io::Prometheus::Client::MetricFamily.new(
             name: metric_snapshot.name.to_s,
             help: metric_snapshot.docstring,
@@ -33,7 +33,7 @@ module Fast
           )
         end
 
-        def self.build_metric(series, type)
+        private_class_method def self.build_metric(series, type)
           labels = series.labels.map do |name, value|
             Io::Prometheus::Client::LabelPair.new(name: name.to_s, value: value)
           end
@@ -98,7 +98,7 @@ module Fast
         # Worked example: [[1, 3], [2, 1], [5, 4]] ->
         #   spans: [{offset: 1, length: 2}, {offset: 2, length: 1}]
         #   deltas: [3, -2, 3]
-        def self.build_spans_deltas(buckets)
+        private_class_method def self.build_spans_deltas(buckets)
           return [], [] if buckets.empty?
 
           spans = []

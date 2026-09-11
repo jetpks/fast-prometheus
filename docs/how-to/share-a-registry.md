@@ -22,7 +22,7 @@ into a `DuplicateMetric` error. You need a `Registry` already reachable from eac
    with a registry convenience constructor (`registry.counter`, `registry.histogram`, ...).
    `fetch_or_register` already holds the registry lock while it runs the block, and
    `registry.counter` would try to take that same lock again to call `register` — Ruby's
-   `Mutex` isn't reentrant, so it deadlocks.
+   `Mutex` isn't reentrant, so it raises `ThreadError` (recursive locking).
 
 3. Name the block's metric after the argument you passed to `fetch_or_register` — if it
    doesn't match, `fetch_or_register` raises `ArgumentError` rather than registering the

@@ -22,7 +22,7 @@ gem "fast-prometheus"
 
 `require "fast/prometheus"` loads only the core, with no IO dependencies. The
 opt-in surfaces and what each pulls in are listed in
-`docs/reference/require-paths.md`.
+[the require-path reference](docs/reference/require-paths.md).
 
 ## Quickstart
 
@@ -45,7 +45,7 @@ puts Fast::Prometheus::Formats::Text.render(registry.collect)
 
 Run with `bundle exec ruby -I lib` from the repo root. For running this
 under Falcon and scraping it with a real Prometheus, see
-`docs/tutorials/falcon-app.md`.
+[the Falcon tutorial](docs/tutorials/falcon-app.md).
 
 ## Documentation
 
@@ -82,12 +82,12 @@ remains safe across fibers within a thread — correct under Falcon
 `Fast::Prometheus.registry`. Falcon `--forked` mode gives each process its
 own registry, so a single scrape only sees the metrics of the process that
 handled it; aggregating across processes is out of scope. See
-`docs/explanation/concurrency.md` for the full guarantee.
+[the concurrency model](docs/explanation/concurrency.md) for the full guarantee.
 
 ## Performance
 
 Single process, locked, thread-safe by default (`benchmark-ips` comparisons
-against `prometheus-client`; see `docs/explanation/benchmarks.md` for the
+against `prometheus-client`; see [the benchmarks page](docs/explanation/benchmarks.md) for the
 full run and conditions):
 
 - Bound counter (fast) is on par with prometheus-client's bound counter (1.03x)
@@ -102,4 +102,4 @@ bundle exec rubocop
 E2E_REQUIRED=1 ./integration/run
 ```
 
-See `docs/how-to/verify-a-release.md` for the pre-release rule.
+See [how to verify a release build](docs/how-to/verify-a-release.md) for the pre-release rule.

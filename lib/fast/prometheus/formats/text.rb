@@ -40,20 +40,20 @@ module Fast
           end
         end
 
-        def self.escape_doc(string)
+        private_class_method def self.escape_doc(string)
           return string unless DOC_ESCAPE.match?(string)
 
           string.gsub(DOC_ESCAPE, DOC_REPLACE)
         end
 
-        def self.escape_label(string)
+        private_class_method def self.escape_label(string)
           string = string.to_s
           return string unless LABEL_ESCAPE.match?(string)
 
           string.gsub(LABEL_ESCAPE, LABEL_REPLACE)
         end
 
-        def self.format_labels(labels)
+        private_class_method def self.format_labels(labels)
           return "" if labels.empty?
 
           output = String.new("{")
@@ -66,11 +66,11 @@ module Fast
           output
         end
 
-        def self.metric_line(output, name, labels, value)
+        private_class_method def self.metric_line(output, name, labels, value)
           output << "#{name}#{format_labels(labels)} #{value}\n"
         end
 
-        def self.histogram_lines(output, name, labels, value)
+        private_class_method def self.histogram_lines(output, name, labels, value)
           value.cumulative_buckets.each do |boundary, count|
             le = boundary.infinite? ? "+Inf" : boundary.to_s
             metric_line(output, "#{name}_bucket", labels.merge("le" => le), count)
@@ -80,7 +80,7 @@ module Fast
           metric_line(output, "#{name}_count", labels, value.count)
         end
 
-        def self.summary_lines(output, name, labels, value)
+        private_class_method def self.summary_lines(output, name, labels, value)
           metric_line(output, "#{name}_sum", labels, value.sum)
           metric_line(output, "#{name}_count", labels, value.count)
         end

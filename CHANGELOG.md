@@ -37,6 +37,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Documentation reorganized: `README.md` is now a front door, and the
   tutorials, how-to guides, reference, and explanation live under `docs/`
   per the Diátaxis framework.
+- `Formats::Text` and `Formats::Protobuf` expose only `.render`; the
+  rendering helpers they used to leak as public singleton methods are private.
 
 ## [0.1.0.pre.1] - 2026-07-19
 

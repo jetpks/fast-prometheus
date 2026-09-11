@@ -73,7 +73,7 @@ Methods
 
 | Signature | Returns | Notes |
 |---|---|---|
-| `increment(by: 1, labels: {})` | `nil` | Raises `ArgumentError` unless `by` is a non-negative `Numeric`. A `by` of `0` is a no-op. |
+| `increment(by: 1, labels: {})` | unspecified | Raises `ArgumentError` unless `by` is a non-negative `Numeric`. A `by` of `0` is a no-op. `requests.increment(by: 5, labels: { method: "POST", path: "/api" })` |
 
 ## `Gauge`
 
@@ -85,9 +85,9 @@ Methods
 
 | Signature | Returns | Notes |
 |---|---|---|
-| `set(value, labels: {})` | `nil` | Raises `ArgumentError` unless `value` is `Numeric`. |
-| `increment(by: 1, labels: {})` | `nil` | Raises `ArgumentError` unless `by` is `Numeric`. A `by` of `0` is a no-op. |
-| `decrement(by: 1, labels: {})` | `nil` | Raises `ArgumentError` unless `by` is `Numeric`. A `by` of `0` is a no-op. |
+| `set(value, labels: {})` | unspecified | Raises `ArgumentError` unless `value` is `Numeric`. `temperature.set(72.5, labels: { core: "0" })` |
+| `increment(by: 1, labels: {})` | unspecified | Raises `ArgumentError` unless `by` is `Numeric`. A `by` of `0` is a no-op. `temperature.increment(labels: { core: "0" })` |
+| `decrement(by: 1, labels: {})` | unspecified | Raises `ArgumentError` unless `by` is `Numeric`. A `by` of `0` is a no-op. `temperature.decrement(by: 5, labels: { core: "0" })` |
 
 ## `Histogram`
 
@@ -110,11 +110,12 @@ Methods
 
 | Signature | Returns | Notes |
 |---|---|---|
-| `observe(value, labels: {})` | `nil` | Records one observation. |
+| `observe(value, labels: {})` | unspecified | Records one observation. `duration.observe(0.042, labels: { method: "GET" })` |
 | `cumulative_buckets(labels: {})` | `Array<[Float, Integer]>` or `nil` | Per-series cumulative bucket counts, ending with `[Float::INFINITY, count]`; `nil` if the series has no observations. |
 | `get(labels: {})` | `Histogram::HistogramSlot` or `nil` | The slot for a label set. |
 | `sum(labels: {})` | `Float` or `nil` | Sum of observed values for a series. |
 | `count(labels: {})` | `Integer` or `nil` | Count of observed values for a series. |
+| `buckets` | `Array<Numeric>` | Attribute reader — the configured upper bounds. |
 | `.linear_buckets(start:, width:, count:)` | `Array<Float>` | `count` buckets starting at `start`, each `width` apart. |
 | `.exponential_buckets(start:, factor:, count:)` | `Array<Float>` | `count` buckets starting at `start`, each `factor`× the last. Raises `ArgumentError` unless `start > 0`, `factor > 1`, `count >= 1`. |
 
@@ -128,7 +129,7 @@ Methods
 
 | Signature | Returns | Notes |
 |---|---|---|
-| `observe(value, labels: {})` | `nil` | Records one observation. |
+| `observe(value, labels: {})` | unspecified | Records one observation. `latency.observe(0.037, labels: { method: "GET" })` |
 | `get(labels: {})` | `Summary::Value` or `nil` | The slot (`sum`, `count`) for a label set. |
 
 ## `NativeHistogram`
@@ -152,7 +153,7 @@ Methods
 
 | Signature | Returns | Notes |
 |---|---|---|
-| `observe(value, labels: {})` | `nil` | Never raises. `NaN` counts toward `sum`/`count` only; `±Infinity` clamps into the max bucket index (`2**31 - 1`) on the matching side. |
+| `observe(value, labels: {})` | `nil` | `native.observe(0.042, labels: { method: "GET" })`. Never raises. `NaN` counts toward `sum`/`count` only; `±Infinity` clamps into the max bucket index (`2**31 - 1`) on the matching side. |
 | `get(labels: {})` | `NativeHistogram::Slot` or `nil` | The slot for a label set. |
 | `schema` | `Integer` | Attribute reader — the metric's configured schema (not per-series; a series' live schema can be lower after downscaling). |
 | `zero_threshold` | `Float` | Attribute reader. |

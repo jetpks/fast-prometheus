@@ -30,8 +30,8 @@ concurrent threads and fibers:
 
 Each metric owns one `Store`, and the store owns the lock (`lib/fast/prometheus/store.rb`) —
 a `Monitor`, not a plain `Mutex`, because it's reentrant: a thread already holding it (for
-example, `Metric#synchronize` driving `MetricSnapshot.of`, or a slot-based metric's `observe`
-calling into a helper that also locks) can enter it again without deadlocking itself.
+example, `Metric#synchronize` driving `MetricSnapshot.of`, or `Histogram#sum`, `#count` and
+`#cumulative_buckets` calling `get`, which locks again) can enter it again without deadlocking itself.
 `Metric#with_labels` returns a new metric object that shares its parent's `Store`, so a bound
 counter from `with_labels` and its unbound parent are mutually exclusive on the same lock —
 mutating one blocks a concurrent mutation or read of the other. Every mutation
