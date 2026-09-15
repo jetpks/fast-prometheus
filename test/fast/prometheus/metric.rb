@@ -28,6 +28,21 @@ describe Fast::Prometheus::Metric do
       expect { TestMetric.new(:valid_name, docstring: "help") }.not.to raise_exception
     end
 
+    it "stores a String name as a Symbol" do
+      metric = TestMetric.new("valid_name", docstring: "help")
+      expect(metric.name).to be(:==, :valid_name)
+    end
+
+    it "seeds a zero-valued series when fully bound" do
+      metric = TestMetric.new(:valid_name, docstring: "help")
+      expect(metric.values).to be(:==, {} => 0.0)
+    end
+
+    it "seeds nothing when partially bound" do
+      metric = TestMetric.new(:valid_name, docstring: "help", labels: [:method])
+      expect(metric.values).to be(:==, {})
+    end
+
     it "rejects nil docstring" do
       expect { TestMetric.new(:valid_name, docstring: nil) }.to raise_exception(ArgumentError)
     end
@@ -62,6 +77,53 @@ describe Fast::Prometheus::Metric do
       bound = metric.with_labels(method: "get")
       bound.touch
       expect(metric.values).to be(:==, { method: "get" } => 1.0)
+    end
+
+    it "seeds its series on creation when fully bound" do
+      metric = TestMetric.new(:test, docstring: "help", labels: [:method])
+      metric.with_labels(method: "get")
+      expect(metric.values).to be(:==, { method: "get" } => 0.0)
+    end
+  end
+
+  describe "#labels" do
+    it "returns the declared label names" do
+      metric = TestMetric.new(:test, docstring: "help", labels: %i[method status])
+      expect(metric.labels).to be(:==, %i[method status])
+    end
+
+    it "no longer responds to label_names" do
+      metric = TestMetric.new(:test, docstring: "help")
+      expect(metric.respond_to?(:label_names)).to be(:==, false)
+    end
+  end
+
+  describe "#init_label_set" do
+    it "creates an absent series at zero" do
+      metric = TestMetric.new(:test, docstring: "help", labels: [:method])
+      metric.init_label_set(method: "get")
+      expect(metric.values).to be(:==, { method: "get" } => 0.0)
+    end
+
+    it "never resets a live series" do
+      metric = TestMetric.new(:test, docstring: "help", labels: [:method])
+      metric.touch(labels: { method: "get" })
+      metric.init_label_set(method: "get")
+      expect(metric.values).to be(:==, { method: "get" } => 1.0)
+    end
+
+    it "raises InvalidLabelSet on an unknown label" do
+      metric = TestMetric.new(:test, docstring: "help", labels: [:method])
+      expect { metric.init_label_set(bogus: "1") }.to raise_exception(Fast::Prometheus::InvalidLabelSet)
+    end
+  end
+
+  describe "#get" do
+    it "never creates a series" do
+      metric = TestMetric.new(:test, docstring: "help", labels: [:method])
+      before = metric.values
+      metric.get(labels: { method: "get" })
+      expect(metric.values).to be(:==, before)
     end
   end
 

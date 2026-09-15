@@ -33,6 +33,21 @@ describe Fast::Prometheus::Gauge do
     end
   end
 
+  describe "#set_to_current_time" do
+    it "sets the value to the current epoch seconds" do
+      before = Time.now.to_f
+      gauge.set_to_current_time
+      expect(gauge.get).to be(:>=, before)
+    end
+
+    it "sets a labeled series" do
+      labeled = Fast::Prometheus::Gauge.new(:temp, docstring: "Temp", labels: [:zone])
+      before = Time.now.to_f
+      labeled.set_to_current_time(labels: { zone: "a" })
+      expect(labeled.get(labels: { zone: "a" })).to be(:>=, before)
+    end
+  end
+
   describe "#increment" do
     it "increments by 1 by default" do
       gauge.increment
@@ -98,8 +113,9 @@ describe Fast::Prometheus::Gauge do
 
     it "does not create series on get" do
       bound = gauge.with_labels
+      before = bound.values
       bound.get
-      expect(bound.values).to be(:==, {})
+      expect(bound.values).to be(:==, before)
     end
   end
 

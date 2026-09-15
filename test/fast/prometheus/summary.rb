@@ -27,22 +27,20 @@ describe Fast::Prometheus::Summary do
       summary = Fast::Prometheus::Summary.new(:t, docstring: "t")
       summary.observe(2.5)
       summary.observe(1.5)
-      value = summary.get
-      expect(value.sum).to be(:==, 4.0)
-      expect(value.count).to be(:==, 2)
+      expect(summary.get).to be(:==, { "count" => 2, "sum" => 4.0 })
     end
 
     it "keeps labeled series independent" do
       summary = Fast::Prometheus::Summary.new(:t, docstring: "t", labels: [:method])
       summary.observe(1.0, labels: { method: "get" })
       summary.observe(2.0, labels: { method: "post" })
-      expect(summary.get(labels: { method: "get" }).sum).to be(:==, 1.0)
-      expect(summary.get(labels: { method: "post" }).sum).to be(:==, 2.0)
+      expect(summary.get(labels: { method: "get" })["sum"]).to be(:==, 1.0)
+      expect(summary.get(labels: { method: "post" })["sum"]).to be(:==, 2.0)
     end
 
-    it "returns nil for unobserved label set" do
+    it "returns a zero-valued hash for unobserved label set" do
       summary = Fast::Prometheus::Summary.new(:t, docstring: "t", labels: [:method])
-      expect(summary.get(labels: { method: "get" })).to be_nil
+      expect(summary.get(labels: { method: "get" })).to be(:==, { "count" => 0, "sum" => 0.0 })
     end
   end
 
@@ -51,9 +49,36 @@ describe Fast::Prometheus::Summary do
       summary = Fast::Prometheus::Summary.new(:t, docstring: "t", labels: [:method])
       bound = summary.with_labels(method: "get")
       bound.observe(2.0)
-      value = summary.get(labels: { method: "get" })
-      expect(value.sum).to be(:==, 2.0)
-      expect(value.count).to be(:==, 1)
+      expect(summary.get(labels: { method: "get" })).to be(:==, { "count" => 1, "sum" => 2.0 })
+    end
+  end
+
+  describe "seeding" do
+    it "seeds a zero-valued series at construction when fully bound" do
+      summary = Fast::Prometheus::Summary.new(:t, docstring: "t")
+      expect(summary.values).to be(:==, { {} => { "count" => 0, "sum" => 0.0 } })
+    end
+
+    it "seeds nothing when partially bound" do
+      summary = Fast::Prometheus::Summary.new(:t, docstring: "t", labels: [:method])
+      expect(summary.values).to be(:==, {})
+    end
+
+    it "seeds a fully-bound with_labels child" do
+      summary = Fast::Prometheus::Summary.new(:t, docstring: "t", labels: [:method])
+      summary.with_labels(method: "get")
+      expect(summary.values).to be(:==, { { method: "get" } => { "count" => 0, "sum" => 0.0 } })
+    end
+  end
+
+  describe "#init_label_set" do
+    it "creates an absent series at zero without resetting a live one" do
+      summary = Fast::Prometheus::Summary.new(:t, docstring: "t", labels: [:method])
+      summary.observe(2.0, labels: { method: "get" })
+      summary.init_label_set(method: "get")
+      summary.init_label_set(method: "post")
+      expect(summary.get(labels: { method: "get" })).to be(:==, { "count" => 1, "sum" => 2.0 })
+      expect(summary.get(labels: { method: "post" })).to be(:==, { "count" => 0, "sum" => 0.0 })
     end
   end
 
@@ -71,9 +96,7 @@ describe Fast::Prometheus::Summary do
         end.each(&:wait)
       end
 
-      value = summary.get
-      expect(value.count).to be(:==, 500)
-      expect(value.sum).to be(:==, 500.0)
+      expect(summary.get).to be(:==, { "count" => 500, "sum" => 500.0 })
     end
   end
 end
