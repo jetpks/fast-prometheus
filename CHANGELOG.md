@@ -7,6 +7,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `Registry#exist?(name)` — true iff a metric is registered under `name`.
+- `Metric#init_label_set(labels)` is now public: it resolves `labels` like any
+  mutator and creates that series at the type's zero value under the store
+  lock, only if it's absent — it never resets a live series.
+- Every metric now seeds a zero-valued series at construction when it's fully
+  bound (no declared labels, or `preset_labels:` covers every declared
+  label); a fully-bound `with_labels` child seeds its own series the same
+  way. A seeded series shows up in `values`, `Registry#collect`, and text/
+  protobuf exposition at zero — for example a freshly registered counter now
+  renders `requests_total 0.0` instead of being absent from scrapes until
+  first incremented. Partially-bound metrics and zero-valued
+  `increment`/`decrement` still seed nothing; `get` still never creates a
+  series.
+- `Gauge#set_to_current_time(labels: {})` — `set(Time.now.to_f, labels:
+  labels)`.
+
+### Changed
+
+- **Breaking:** `Metric` names may now be given as a `String` or a `Symbol`
+  and are normalized to a `Symbol` on construction; `Metric#name` always
+  returns a `Symbol` where it previously echoed back whatever was passed in.
+  `Registry#unregister`, `#get`, `#exist?`, and `#fetch_or_register` accept
+  either form and symbolize it before lookup; `DuplicateMetric` now fires
+  across forms (registering `"requests_total"` after `:requests_total` is
+  already registered raises).
+- **Breaking:** `Metric#label_names` is renamed to `Metric#labels`; the old
+  name no longer exists (no alias). `MetricSnapshot#label_names` is
+  unaffected.
+- **Breaking:** `Histogram#get`/`#values` and `Summary#get`/`#values` now
+  return prometheus-client-shaped hashes instead of the internal
+  `HistogramSlot`/`Summary::Value` storage objects. `Histogram#get` returns a
+  fresh `Hash` keyed by each bucket boundary's `to_s` (ascending), then
+  `"+Inf"`, then `"sum"`, with cumulative `Integer` bucket counts and a
+  `Float` sum; `Summary#get` returns `{ "count" => Integer, "sum" => Float }`.
+  `Histogram#cumulative_buckets`, `#sum`, and `#count` now return zero-valued
+  results for an unobserved series instead of `nil`. `NativeHistogram#get`/
+  `#values` now return the frozen `NativeHistogramValue` snapshot type
+  (previously the internal `NativeHistogram::Slot`), including a zero-valued
+  value for an unobserved series. All of these are fresh copies per call;
+  mutating a returned `Hash` no longer affects the metric.
+- `Fast::Prometheus.registry=` now assigns under the same lock the reader
+  uses, closing a race between a writer and a concurrent reader/memoizing
+  first read.
+
 ## [0.1.0] - 2026-09-11
 
 ### Added
