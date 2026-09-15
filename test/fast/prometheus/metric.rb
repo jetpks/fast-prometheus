@@ -172,11 +172,26 @@ describe Fast::Prometheus::Metric do
     end
   end
 
+  describe "#raw_values" do
+    it "is not part of the public interface" do
+      metric = TestMetric.new(:test, docstring: "help")
+      expect(metric.respond_to?(:raw_values)).to be(:==, false)
+    end
+  end
+
   describe "#values" do
     it "returns label-hash keyed data" do
       metric = TestMetric.new(:test, docstring: "help", labels: [:method])
       metric.touch(labels: { method: "get" })
       expect(metric.values).to be(:==, { method: "get" } => 1.0)
+    end
+  end
+
+  describe "#snapshot_values" do
+    it "returns label-hash keyed frozen values, built under the store lock" do
+      metric = TestMetric.new(:test, docstring: "help", labels: [:method])
+      metric.touch(labels: { method: "get" })
+      expect(metric.snapshot_values).to be(:==, { method: "get" } => 1.0)
     end
   end
 
