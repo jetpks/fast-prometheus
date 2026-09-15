@@ -24,14 +24,14 @@ module Fast
             metric.name,
             metric.docstring,
             metric.type,
-            metric.label_names.dup.freeze,
+            metric.labels.dup.freeze,
             build_series(metric).freeze
           )
         end
       end
 
       def self.build_series(metric)
-        metric.values.map do |labels, value|
+        metric.raw_values.map do |labels, value|
           Series.new(
             labels: labels.dup.freeze,
             value: build_value(metric.type, value)

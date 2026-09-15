@@ -74,16 +74,18 @@ describe "Fast::Prometheus thread safety" do
     expected = threads_count * ops
     expect(counter.values.values.sum).to be(:==, expected)
     expect(gauge.values.values.sum).to be(:==, expected)
-    expect(histogram.values.values.sum(&:count)).to be(:==, expected)
-    expect(summary.values.values.sum(&:count)).to be(:==, expected)
+    expect(histogram.values.values.sum { |v| v["+Inf"] }).to be(:==, expected)
+    expect(summary.values.values.sum { |v| v["count"] }).to be(:==, expected)
     expect(native.values.values.sum(&:count)).to be(:==, expected)
     expect(hot.get).to be(:==, expected)
 
-    histogram.values.each_value do |slot|
-      expect(slot.cells.sum).to be(:==, slot.count)
+    histogram_values = histogram.values
+    histogram_values.each do |labels, v|
+      expect(v["+Inf"]).to be(:==, histogram.count(labels: labels))
     end
-    native.values.each_value do |slot|
-      expect(slot.positive.values.sum + slot.negative.values.sum + slot.zero_count).to be(:==, slot.count)
+    native.values.each_value do |value|
+      buckets = value.positive_buckets.sum { |_, c| c } + value.negative_buckets.sum { |_, c| c }
+      expect(buckets + value.zero_count).to be(:==, value.count)
     end
   end
 

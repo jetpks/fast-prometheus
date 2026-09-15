@@ -65,6 +65,29 @@ describe Fast::Prometheus::Registry do
     end
   end
 
+  describe "#exist?" do
+    it "is true iff a metric is registered under that name" do
+      registry.register(Fast::Prometheus::Counter.new(:requests, docstring: "Requests"))
+      expect(registry.exist?(:requests)).to be(:==, true)
+      expect(registry.exist?(:nope)).to be(:==, false)
+    end
+  end
+
+  describe "name forms" do
+    it "treats String and Symbol names as interchangeable" do
+      counter = registry.counter("requests", docstring: "Requests")
+      expect(counter.name).to be(:==, :requests)
+      expect(registry.get("requests")).to be(:==, counter)
+      expect(registry.get(:requests)).to be(:==, counter)
+      expect(registry.exist?("requests")).to be(:==, true)
+
+      expect { registry.counter(:requests, docstring: "Dup") }.to raise_exception(Fast::Prometheus::DuplicateMetric)
+
+      registry.unregister("requests")
+      expect(registry.exist?(:requests)).to be(:==, false)
+    end
+  end
+
   describe "#metrics" do
     it "returns a copy" do
       registry.register(Fast::Prometheus::Counter.new(:requests, docstring: "R"))

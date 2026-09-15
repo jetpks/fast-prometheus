@@ -55,17 +55,68 @@ describe Fast::Prometheus::Histogram do
   end
 
   describe "#get" do
-    it "returns the slot after observations" do
+    it "returns the prometheus-client-shaped hash after observations" do
       h = Fast::Prometheus::Histogram.new(:t, docstring: "t", buckets: [1])
       h.observe(0.5)
-      slot = h.get
-      expect(slot.count).to be(:==, 1)
-      expect(slot.sum).to be(:==, 0.5)
+      expect(h.get).to be(:==, { "1" => 1, "+Inf" => 1, "sum" => 0.5 })
     end
 
-    it "returns nil when no observations" do
-      h = Fast::Prometheus::Histogram.new(:t, docstring: "t")
-      expect(h.get).to be_nil
+    it "returns a zero-valued hash when no observations" do
+      h = Fast::Prometheus::Histogram.new(:t, docstring: "t", buckets: [1])
+      expect(h.get).to be(:==, { "1" => 0, "+Inf" => 0, "sum" => 0.0 })
+    end
+
+    it "mutating the returned hash does not affect the metric" do
+      h = Fast::Prometheus::Histogram.new(:t, docstring: "t", buckets: [1])
+      h.observe(0.5)
+      h.get["sum"] = 999
+      expect(h.get["sum"]).to be(:==, 0.5)
+    end
+  end
+
+  describe "#values" do
+    it "keys the hash shape by label set" do
+      h = Fast::Prometheus::Histogram.new(:t, docstring: "t", buckets: [1], labels: [:path])
+      h.observe(0.5, labels: { path: "/health" })
+      expect(h.values).to be(:==, { { path: "/health" } => { "1" => 1, "+Inf" => 1, "sum" => 0.5 } })
+    end
+  end
+
+  describe "seeding" do
+    it "seeds a zero-valued series at construction when fully bound" do
+      h = Fast::Prometheus::Histogram.new(:t, docstring: "t", buckets: [1])
+      expect(h.values).to be(:==, { {} => { "1" => 0, "+Inf" => 0, "sum" => 0.0 } })
+    end
+
+    it "seeds nothing when partially bound" do
+      h = Fast::Prometheus::Histogram.new(:t, docstring: "t", buckets: [1], labels: [:path])
+      expect(h.values).to be(:==, {})
+    end
+
+    it "seeds a fully-bound with_labels child" do
+      h = Fast::Prometheus::Histogram.new(:t, docstring: "t", buckets: [1], labels: [:path])
+      h.with_labels(path: "/health")
+      expect(h.values).to be(:==, { { path: "/health" } => { "1" => 0, "+Inf" => 0, "sum" => 0.0 } })
+    end
+  end
+
+  describe "#init_label_set" do
+    it "creates an absent series at zero" do
+      h = Fast::Prometheus::Histogram.new(:t, docstring: "t", buckets: [1], labels: [:path])
+      h.init_label_set(path: "/health")
+      expect(h.get(labels: { path: "/health" })).to be(:==, { "1" => 0, "+Inf" => 0, "sum" => 0.0 })
+    end
+
+    it "never resets a live series" do
+      h = Fast::Prometheus::Histogram.new(:t, docstring: "t", buckets: [1], labels: [:path])
+      h.observe(0.5, labels: { path: "/health" })
+      h.init_label_set(path: "/health")
+      expect(h.get(labels: { path: "/health" })).to be(:==, { "1" => 1, "+Inf" => 1, "sum" => 0.5 })
+    end
+
+    it "raises InvalidLabelSet on an unknown label" do
+      h = Fast::Prometheus::Histogram.new(:t, docstring: "t", buckets: [1], labels: [:path])
+      expect { h.init_label_set(bogus: "1") }.to raise_exception(Fast::Prometheus::InvalidLabelSet)
     end
   end
 

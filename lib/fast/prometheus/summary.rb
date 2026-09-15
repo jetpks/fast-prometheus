@@ -30,9 +30,17 @@ module Fast
         end
       end
 
+      # {"count" => Integer, "sum" => Float}. Zero-valued for an unobserved series.
       def get(labels: {})
         key = resolve(labels)
-        store.synchronize { store[key] }
+        store.synchronize { hash_shape(store[key] || zero_value) }
+      end
+
+      def values
+        store.synchronize do
+          store.to_h.transform_keys { |key| @labels.zip(key).to_h }
+               .transform_values { |slot| hash_shape(slot) }
+        end
       end
 
       protected
@@ -44,6 +52,16 @@ module Fast
         end
 
         super
+      end
+
+      private
+
+      def zero_value
+        Value.new
+      end
+
+      def hash_shape(slot)
+        { "count" => slot.count, "sum" => slot.sum }
       end
     end
   end
