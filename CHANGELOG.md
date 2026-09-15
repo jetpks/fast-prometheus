@@ -24,6 +24,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   series.
 - `Gauge#set_to_current_time(labels: {})` — `set(Time.now.to_f, labels:
   labels)`.
+- `Metric#snapshot_values` — every series' value in its frozen snapshot shape
+  (`HistogramValue`, `SummaryValue`, `NativeHistogramValue`, or the
+  already-frozen `Float` for `Counter`/`Gauge`), keyed by label hash, built
+  under the store lock.
 
 ### Changed
 

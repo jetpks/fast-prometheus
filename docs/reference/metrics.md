@@ -67,6 +67,7 @@ Methods
 | `type` | — | Raises `NotImplementedError`; every subclass overrides. |
 | `with_labels(**labels)` | new instance of the same class | Pre-binds labels for a hot-path metric; shares the parent's store. Raises `InvalidLabelSet` for an unknown label key. Seeds its own series on creation if the result is fully bound. |
 | `values` | `Hash{Hash => value}` | Every series' value keyed by its label hash; shape depends on the metric type — see each type below. |
+| `snapshot_values` | `Hash{Hash => value}` | Every series' value in its frozen snapshot shape (see [`Snapshot`, `MetricSnapshot`, and series value shapes](#snapshot-metricsnapshot-and-series-value-shapes)), keyed by label hash, built under the store lock. `Counter`/`Gauge` use the already-frozen `Float`; `Histogram`, `Summary`, and `NativeHistogram` use `HistogramValue`, `SummaryValue`, and `NativeHistogramValue` respectively — the seam `MetricSnapshot.of` uses. |
 | `synchronize { ... }` | block's return value | Runs the block exclusively with respect to every other mutation or read of this metric's store, including `with_labels` children. Reentrant on the same thread. |
 
 ### Seeding
@@ -79,8 +80,8 @@ or `init_label_set` is called with a complete label set.
 
 A seeded series appears in `values`, in `Registry#collect`, and in text/protobuf exposition
 at its type's zero value (`0.0` for `Counter`/`Gauge`, all-zero buckets/sum/count for
-`Histogram`, zero count/sum for `Summary`, an empty slot for `NativeHistogram`) — e.g. a
-freshly seeded `Counter` renders `requests_total 0.0`. Zero-valued `increment`/`decrement`
+`Histogram`, zero count/sum for `Summary`, a zero-count `NativeHistogramValue` for
+`NativeHistogram`) — e.g. a freshly seeded `Counter` renders `requests_total 0.0`. Zero-valued `increment`/`decrement`
 remain no-ops; they don't need to seed a series that already exists. `get` never creates a
 series — reading an absent one just returns the type's zero shape.
 

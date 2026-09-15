@@ -37,10 +37,7 @@ module Fast
       end
 
       def values
-        store.synchronize do
-          store.to_h.transform_keys { |key| @labels.zip(key).to_h }
-               .transform_values { |slot| hash_shape(slot) }
-        end
+        series_map { |slot| hash_shape(slot) }
       end
 
       protected
@@ -58,6 +55,10 @@ module Fast
 
       def zero_value
         Value.new
+      end
+
+      def snapshot_value(slot)
+        SummaryValue.new(sum: slot.sum, count: slot.count)
       end
 
       def hash_shape(slot)

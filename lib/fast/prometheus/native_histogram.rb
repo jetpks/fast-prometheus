@@ -111,14 +111,11 @@ module Fast
       # metric's schema/zero_threshold for an unobserved series.
       def get(labels: {})
         key = resolve(labels)
-        store.synchronize { native_histogram_value(store[key] || zero_value) }
+        store.synchronize { snapshot_value(store[key] || zero_value) }
       end
 
       def values
-        store.synchronize do
-          store.to_h.transform_keys { |key| @labels.zip(key).to_h }
-               .transform_values { |slot| native_histogram_value(slot) }
-        end
+        series_map { |slot| snapshot_value(slot) }
       end
 
       protected
@@ -133,7 +130,7 @@ module Fast
         Slot.new(schema: @schema, zero_threshold: @zero_threshold)
       end
 
-      def native_histogram_value(slot)
+      def snapshot_value(slot)
         NativeHistogramValue.new(
           schema: slot.schema,
           zero_threshold: slot.zero_threshold,

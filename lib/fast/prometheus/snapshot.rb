@@ -31,36 +31,8 @@ module Fast
       end
 
       def self.build_series(metric)
-        metric.raw_values.map do |labels, value|
-          Series.new(
-            labels: labels.dup.freeze,
-            value: build_value(metric.type, value)
-          )
-        end
-      end
-
-      private_class_method def self.build_value(type, value)
-        case type
-        when :counter, :gauge
-          value
-        when :histogram
-          HistogramValue.new(
-            sum: value.sum,
-            count: value.count,
-            cumulative_buckets: value.cumulative_buckets.map { |pair| pair.dup.freeze }.freeze
-          )
-        when :summary
-          SummaryValue.new(sum: value.sum, count: value.count)
-        when :native_histogram
-          NativeHistogramValue.new(
-            schema: value.schema,
-            zero_threshold: value.zero_threshold,
-            zero_count: value.zero_count,
-            sum: value.sum,
-            count: value.count,
-            positive_buckets: value.positive_buckets.map { |pair| pair.dup.freeze }.freeze,
-            negative_buckets: value.negative_buckets.map { |pair| pair.dup.freeze }.freeze
-          )
+        metric.snapshot_values.map do |labels, value|
+          Series.new(labels: labels.dup.freeze, value: value)
         end
       end
     end

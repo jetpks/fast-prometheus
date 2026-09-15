@@ -177,14 +177,14 @@ describe Fast::Prometheus::NativeHistogram do
       expect(nh.get.frozen?).to be(:==, true)
     end
 
-    it "returns slot after observations" do
+    it "returns count/zero_count/positive_buckets after observations" do
       nh = Fast::Prometheus::NativeHistogram.new(:t, docstring: "t")
       nh.observe(1.5)
       nh.observe(0.0)
-      slot = nh.get
-      expect(slot.count).to be(:==, 2)
-      expect(slot.zero_count).to be(:==, 1)
-      expect(slot.positive_buckets.length).to be(:==, 1)
+      value = nh.get
+      expect(value.count).to be(:==, 2)
+      expect(value.zero_count).to be(:==, 1)
+      expect(value.positive_buckets.length).to be(:==, 1)
     end
   end
 
@@ -206,6 +206,16 @@ describe Fast::Prometheus::NativeHistogram do
       values = nh.values
       expect(values.keys).to be(:==, [{ service: "auth" }])
       expect(values[{ service: "auth" }]).to be_a(Fast::Prometheus::NativeHistogramValue)
+    end
+  end
+
+  describe "#snapshot_values" do
+    it "keys frozen NativeHistogramValues by label set, matching #get and MetricSnapshot.of" do
+      nh = Fast::Prometheus::NativeHistogram.new(:t, docstring: "t", labels: [:service])
+      nh.observe(1.0, labels: { service: "auth" })
+      value = nh.snapshot_values[{ service: "auth" }]
+      expect(value).to be(:==, nh.get(labels: { service: "auth" }))
+      expect(value).to be(:==, Fast::Prometheus::MetricSnapshot.of(nh).series.first.value)
     end
   end
 

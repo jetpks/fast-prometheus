@@ -68,15 +68,15 @@ module Fast
       end
 
       def values
-        raw_values
+        snapshot_values
       end
 
-      # Seam for MetricSnapshot: this metric's raw per-series storage objects
-      # (Float for Counter/Gauge; the internal slot classes for Histogram,
-      # Summary, and NativeHistogram) rather than the public shapes #get and
-      # #values return on those three types.
-      def raw_values
-        store.synchronize { store.to_h.transform_keys { |key| @labels.zip(key).to_h } }
+      # Every series' value in its frozen snapshot shape (see HistogramValue,
+      # SummaryValue, NativeHistogramValue; Counter/Gauge use the already-
+      # frozen Float), keyed by label hash, built under the store lock. The
+      # seam MetricSnapshot uses to build a consistent view of every series.
+      def snapshot_values
+        series_map { |slot| snapshot_value(slot) }
       end
 
       # Runs +block+ exclusively with respect to every other mutation or read
@@ -121,6 +121,19 @@ module Fast
       # their own empty slot.
       def zero_value
         0.0
+      end
+
+      # Turns one slot into its frozen snapshot value. Counter/Gauge slots
+      # are already-frozen Floats; Histogram, Summary, and NativeHistogram
+      # override this to build their own snapshot value type.
+      def snapshot_value(slot)
+        slot
+      end
+
+      # Shared shape behind #values and #snapshot_values: every series'
+      # storage transformed by +block+, keyed by label hash, under the lock.
+      def series_map(&block)
+        store.synchronize { store.to_h.transform_keys { |key| @labels.zip(key).to_h }.transform_values(&block) }
       end
 
       # Creates the series at +key+ at its zero value if absent. Never resets

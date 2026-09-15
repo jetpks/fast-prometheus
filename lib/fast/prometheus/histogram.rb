@@ -85,10 +85,7 @@ module Fast
       end
 
       def values
-        store.synchronize do
-          store.to_h.transform_keys { |key| @labels.zip(key).to_h }
-               .transform_values { |slot| hash_shape(slot) }
-        end
+        series_map { |slot| hash_shape(slot) }
       end
 
       # Reader for sum of a specific series; 0.0 when unobserved.
@@ -129,6 +126,14 @@ module Fast
 
       def slot_or_zero(key)
         store[key] || zero_value
+      end
+
+      def snapshot_value(slot)
+        HistogramValue.new(
+          sum: slot.sum,
+          count: slot.count,
+          cumulative_buckets: slot.cumulative_buckets.map { |pair| pair.dup.freeze }.freeze
+        )
       end
 
       def hash_shape(slot)

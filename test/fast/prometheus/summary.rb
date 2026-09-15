@@ -53,6 +53,18 @@ describe Fast::Prometheus::Summary do
     end
   end
 
+  describe "#snapshot_values" do
+    it "keys frozen SummaryValues by label set, matching MetricSnapshot.of" do
+      summary = Fast::Prometheus::Summary.new(:t, docstring: "t", labels: [:method])
+      summary.observe(2.0, labels: { method: "get" })
+      value = summary.snapshot_values[{ method: "get" }]
+      expect(value).to be_a(Fast::Prometheus::SummaryValue)
+      expect(value.sum).to be(:==, 2.0)
+      expect(value.count).to be(:==, 1)
+      expect(value).to be(:==, Fast::Prometheus::MetricSnapshot.of(summary).series.first.value)
+    end
+  end
+
   describe "seeding" do
     it "seeds a zero-valued series at construction when fully bound" do
       summary = Fast::Prometheus::Summary.new(:t, docstring: "t")
