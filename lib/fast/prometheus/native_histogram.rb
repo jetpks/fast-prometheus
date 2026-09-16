@@ -107,10 +107,15 @@ module Fast
         end
       end
 
-      # Get the slot for a label set, or nil if no observations recorded.
+      # A frozen NativeHistogramValue for a label set; zero-valued at this
+      # metric's schema/zero_threshold for an unobserved series.
       def get(labels: {})
         key = resolve(labels)
-        store.synchronize { store[key] }
+        store.synchronize { snapshot_value(store[key] || zero_value) }
+      end
+
+      def values
+        series_map { |slot| snapshot_value(slot) }
       end
 
       protected
@@ -120,6 +125,22 @@ module Fast
       end
 
       private
+
+      def zero_value
+        Slot.new(schema: @schema, zero_threshold: @zero_threshold)
+      end
+
+      def snapshot_value(slot)
+        NativeHistogramValue.new(
+          schema: slot.schema,
+          zero_threshold: slot.zero_threshold,
+          zero_count: slot.zero_count,
+          sum: slot.sum,
+          count: slot.count,
+          positive_buckets: slot.positive_buckets.map { |pair| pair.dup.freeze }.freeze,
+          negative_buckets: slot.negative_buckets.map { |pair| pair.dup.freeze }.freeze
+        ).freeze
+      end
 
       def index_for(value, schema)
         factor = 2.0**schema

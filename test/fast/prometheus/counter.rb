@@ -56,8 +56,9 @@ describe Fast::Prometheus::Counter do
 
     it "does not create series on get" do
       bound = counter.with_labels
+      before = bound.values
       bound.get
-      expect(bound.values).to be(:==, {})
+      expect(bound.values).to be(:==, before)
     end
   end
 

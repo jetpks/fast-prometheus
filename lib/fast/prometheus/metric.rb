@@ -21,25 +21,33 @@ module Fast
         validate_label_names(labels)
         validate_preset_labels(labels, preset_labels)
 
-        @name = name
+        @name = name.to_s.to_sym
         @docstring = docstring
-        @label_names = labels
+        @labels = labels
         @preset_labels = preset_labels.transform_values { |v| v.to_s.freeze }
         @store = store || Store.new
 
         return unless fully_bound?
 
         @resolved_key = resolve_internal(@preset_labels)
+        seed(@resolved_key)
       end
 
-      attr_reader :name, :docstring, :label_names, :preset_labels
+      attr_reader :name, :docstring, :labels, :preset_labels
 
-      # Returns the current value for the given label set.
-      # Scalar types (Counter, Gauge) return 0.0 for unobserved series.
-      # Slot-based types (Histogram, Summary, NativeHistogram) override to return nil.
+      # Returns the current value for the given label set. Scalar types
+      # (Counter, Gauge) return 0.0 for unobserved series. Histogram, Summary,
+      # and NativeHistogram override this with their own zero-valued shapes.
       def get(labels: {})
         key = resolve(labels)
         store.synchronize { store[key] || 0.0 }
+      end
+
+      # Creates the series for +labels+ at its zero value if absent. Never
+      # resets a series that already exists. Raises InvalidLabelSet on an
+      # unknown or incomplete label set, same as any mutator.
+      def init_label_set(labels = {})
+        seed(resolve(labels))
       end
 
       def type
@@ -52,7 +60,7 @@ module Fast
         self.class.new(
           @name,
           docstring: @docstring,
-          labels: @label_names,
+          labels: @labels,
           preset_labels: merged,
           store: @store,
           **construction_options
@@ -60,7 +68,15 @@ module Fast
       end
 
       def values
-        store.synchronize { store.to_h.transform_keys { |key| @label_names.zip(key).to_h } }
+        snapshot_values
+      end
+
+      # Every series' value in its frozen snapshot shape (see HistogramValue,
+      # SummaryValue, NativeHistogramValue; Counter/Gauge use the already-
+      # frozen Float), keyed by label hash, built under the store lock. The
+      # seam MetricSnapshot uses to build a consistent view of every series.
+      def snapshot_values
+        series_map { |slot| snapshot_value(slot) }
       end
 
       # Runs +block+ exclusively with respect to every other mutation or read
@@ -86,7 +102,7 @@ module Fast
 
         validate_label_keys(labels)
 
-        @label_names.map do |n|
+        @labels.map do |n|
           if labels.key?(n)
             labels[n].to_s
           else
@@ -100,8 +116,35 @@ module Fast
 
       private
 
+      # Zero value for a fresh series. Counter/Gauge share this Float
+      # default; Histogram, Summary, and NativeHistogram override it with
+      # their own empty slot.
+      def zero_value
+        0.0
+      end
+
+      # Turns one slot into its frozen snapshot value. Counter/Gauge slots
+      # are already-frozen Floats; Histogram, Summary, and NativeHistogram
+      # override this to build their own snapshot value type.
+      def snapshot_value(slot)
+        slot
+      end
+
+      # Shared shape behind #values and #snapshot_values: every series'
+      # storage transformed by +block+, keyed by label hash, under the lock.
+      def series_map(&block)
+        store.synchronize { store.to_h.transform_keys { |key| @labels.zip(key).to_h }.transform_values(&block) }
+      end
+
+      # Creates the series at +key+ at its zero value if absent. Never resets
+      # a series that already exists. Shared by #initialize (auto-seeding a
+      # fully-bound metric) and #init_label_set.
+      def seed(key)
+        store.synchronize { store[key] ||= zero_value }
+      end
+
       def fully_bound?
-        @preset_labels.size == @label_names.size
+        @preset_labels.size == @labels.size
       end
 
       def validate_metric_name(name)
@@ -132,12 +175,12 @@ module Fast
 
       def validate_label_keys(labels)
         labels.each_key do |key|
-          raise InvalidLabelSet, "unknown label name: #{key.inspect}" unless @label_names.include?(key)
+          raise InvalidLabelSet, "unknown label name: #{key.inspect}" unless @labels.include?(key)
         end
       end
 
       def resolve_internal(merged)
-        @label_names.map { |n| merged.fetch(n) }.freeze
+        @labels.map { |n| merged.fetch(n) }.freeze
       end
     end
   end

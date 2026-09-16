@@ -69,25 +69,35 @@ module Fast
         end
       end
 
-      # Cumulative bucket counts for a specific series (delegates to slot).
+      # Cumulative bucket counts for a specific series, ending with
+      # [Float::INFINITY, count]. Zero-valued pairs for an unobserved series.
       def cumulative_buckets(labels: {})
-        store.synchronize { get(labels: labels)&.cumulative_buckets }
+        key = resolve(labels)
+        store.synchronize { slot_or_zero(key).cumulative_buckets }
       end
 
-      # Get the slot for a label set, or nil if no observations recorded.
+      # Prometheus-client-shaped Hash: each bucket boundary's to_s => cumulative
+      # count, then "+Inf" => cumulative count, then "sum" => Float sum. A
+      # fresh Hash per call; zero-valued for an unobserved series.
       def get(labels: {})
         key = resolve(labels)
-        store.synchronize { store[key] }
+        store.synchronize { hash_shape(slot_or_zero(key)) }
       end
 
-      # Reader for sum of a specific series.
+      def values
+        series_map { |slot| hash_shape(slot) }
+      end
+
+      # Reader for sum of a specific series; 0.0 when unobserved.
       def sum(labels: {})
-        store.synchronize { get(labels: labels)&.sum }
+        key = resolve(labels)
+        store.synchronize { slot_or_zero(key).sum }
       end
 
-      # Reader for count of a specific series.
+      # Reader for count of a specific series; 0 when unobserved.
       def count(labels: {})
-        store.synchronize { get(labels: labels)&.count }
+        key = resolve(labels)
+        store.synchronize { slot_or_zero(key).count }
       end
 
       def self.linear_buckets(start:, width:, count:)
@@ -106,6 +116,32 @@ module Fast
 
       def construction_options
         { buckets: @buckets }
+      end
+
+      private
+
+      def zero_value
+        HistogramSlot.new(buckets: @buckets)
+      end
+
+      def slot_or_zero(key)
+        store[key] || zero_value
+      end
+
+      def snapshot_value(slot)
+        HistogramValue.new(
+          sum: slot.sum,
+          count: slot.count,
+          cumulative_buckets: slot.cumulative_buckets.map { |pair| pair.dup.freeze }.freeze
+        )
+      end
+
+      def hash_shape(slot)
+        pairs = slot.cumulative_buckets
+        hash = pairs[0..-2].to_h { |boundary, count| [boundary.to_s, count] }
+        hash["+Inf"] = pairs.last.last
+        hash["sum"] = slot.sum
+        hash
       end
     end
   end

@@ -162,19 +162,29 @@ describe Fast::Prometheus::NativeHistogram do
   end
 
   describe "#get" do
-    it "returns nil when no observations" do
-      nh = Fast::Prometheus::NativeHistogram.new(:t, docstring: "t")
-      expect(nh.get).to be_nil
+    it "returns a frozen zero-valued NativeHistogramValue when no observations" do
+      nh = Fast::Prometheus::NativeHistogram.new(:t, docstring: "t", labels: [:service])
+      value = nh.get(labels: { service: "auth" })
+      expect(value).to be_a(Fast::Prometheus::NativeHistogramValue)
+      expect(value.frozen?).to be(:==, true)
+      expect(value.count).to be(:==, 0)
+      expect(value.schema).to be(:==, nh.schema)
     end
 
-    it "returns slot after observations" do
+    it "returns a frozen NativeHistogramValue after observations" do
+      nh = Fast::Prometheus::NativeHistogram.new(:t, docstring: "t")
+      nh.observe(1.0)
+      expect(nh.get.frozen?).to be(:==, true)
+    end
+
+    it "returns count/zero_count/positive_buckets after observations" do
       nh = Fast::Prometheus::NativeHistogram.new(:t, docstring: "t")
       nh.observe(1.5)
       nh.observe(0.0)
-      slot = nh.get
-      expect(slot.count).to be(:==, 2)
-      expect(slot.zero_count).to be(:==, 1)
-      expect(slot.positive_buckets.length).to be(:==, 1)
+      value = nh.get
+      expect(value.count).to be(:==, 2)
+      expect(value.zero_count).to be(:==, 1)
+      expect(value.positive_buckets.length).to be(:==, 1)
     end
   end
 
@@ -186,6 +196,61 @@ describe Fast::Prometheus::NativeHistogram do
       slot = nh.get(labels: { service: "auth" })
       expect(slot.count).to be(:==, 1)
       expect(slot.schema).to be(:==, 2)
+    end
+  end
+
+  describe "#values" do
+    it "keys frozen NativeHistogramValues by label set" do
+      nh = Fast::Prometheus::NativeHistogram.new(:t, docstring: "t", labels: [:service])
+      nh.observe(1.0, labels: { service: "auth" })
+      values = nh.values
+      expect(values.keys).to be(:==, [{ service: "auth" }])
+      expect(values[{ service: "auth" }]).to be_a(Fast::Prometheus::NativeHistogramValue)
+    end
+  end
+
+  describe "#snapshot_values" do
+    it "keys frozen NativeHistogramValues by label set, matching #get and MetricSnapshot.of" do
+      nh = Fast::Prometheus::NativeHistogram.new(:t, docstring: "t", labels: [:service])
+      nh.observe(1.0, labels: { service: "auth" })
+      value = nh.snapshot_values[{ service: "auth" }]
+      expect(value).to be(:==, nh.get(labels: { service: "auth" }))
+      expect(value).to be(:==, Fast::Prometheus::MetricSnapshot.of(nh).series.first.value)
+    end
+  end
+
+  describe "seeding" do
+    it "seeds a zero-valued series at construction when fully bound" do
+      nh = Fast::Prometheus::NativeHistogram.new(:t, docstring: "t")
+      expect(nh.values.keys).to be(:==, [{}])
+      expect(nh.values[{}].count).to be(:==, 0)
+    end
+
+    it "seeds nothing when partially bound" do
+      nh = Fast::Prometheus::NativeHistogram.new(:t, docstring: "t", labels: [:service])
+      expect(nh.values).to be(:==, {})
+    end
+
+    it "seeds a fully-bound with_labels child" do
+      nh = Fast::Prometheus::NativeHistogram.new(:t, docstring: "t", labels: [:service])
+      nh.with_labels(service: "auth")
+      expect(nh.values.keys).to be(:==, [{ service: "auth" }])
+    end
+  end
+
+  describe "#init_label_set" do
+    it "creates an absent series at zero without resetting a live one" do
+      nh = Fast::Prometheus::NativeHistogram.new(:t, docstring: "t", labels: [:service])
+      nh.observe(1.0, labels: { service: "auth" })
+      nh.init_label_set(service: "auth")
+      nh.init_label_set(service: "billing")
+      expect(nh.get(labels: { service: "auth" }).count).to be(:==, 1)
+      expect(nh.get(labels: { service: "billing" }).count).to be(:==, 0)
+    end
+
+    it "raises InvalidLabelSet on an unknown label" do
+      nh = Fast::Prometheus::NativeHistogram.new(:t, docstring: "t", labels: [:service])
+      expect { nh.init_label_set(bogus: "1") }.to raise_exception(Fast::Prometheus::InvalidLabelSet)
     end
   end
 

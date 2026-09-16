@@ -28,14 +28,19 @@ module Fast
         end
       end
 
-      # Remove a metric by name.
+      # Remove a metric by name (String or Symbol).
       def unregister(name)
-        @lock.synchronize { @by_name.delete(name) }
+        @lock.synchronize { @by_name.delete(normalize(name)) }
       end
 
-      # Look up a metric by name, or nil.
+      # Look up a metric by name (String or Symbol), or nil.
       def get(name)
-        @lock.synchronize { @by_name[name] }
+        @lock.synchronize { @by_name[normalize(name)] }
+      end
+
+      # True iff a metric is registered under +name+ (String or Symbol).
+      def exist?(name)
+        @lock.synchronize { @by_name.key?(normalize(name)) }
       end
 
       # Atomic fetch-or-register: returns the metric already registered under
@@ -45,15 +50,16 @@ module Fast
       # DuplicateMetric. Raises ArgumentError if the block's metric is not
       # named +name+.
       def fetch_or_register(name)
+        key = normalize(name)
         @lock.synchronize do
-          next @by_name[name] if @by_name.key?(name)
+          next @by_name[key] if @by_name.key?(key)
 
           metric = yield
-          unless metric.name == name
-            raise ArgumentError, "fetch_or_register(#{name.inspect}) block built #{metric.name.inspect}"
+          unless metric.name == key
+            raise ArgumentError, "fetch_or_register(#{key.inspect}) block built #{metric.name.inspect}"
           end
 
-          @by_name[name] = metric
+          @by_name[key] = metric
         end
       end
 
@@ -93,6 +99,12 @@ module Fast
       def collect
         Snapshot.of(metrics)
       end
+
+      private
+
+      def normalize(name)
+        name.to_s.to_sym
+      end
     end
 
     @registry_lock = Mutex.new
@@ -105,7 +117,7 @@ module Fast
     end
 
     def self.registry=(registry)
-      @registry = registry
+      @registry_lock.synchronize { @registry = registry }
     end
   end
 end

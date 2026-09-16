@@ -17,6 +17,10 @@ module Fast
         store.synchronize { store[key] = value.to_f }
       end
 
+      def set_to_current_time(labels: {})
+        set(Time.now.to_f, labels: labels)
+      end
+
       def increment(by: 1, labels: {})
         raise ArgumentError, "by must be a numeric" unless by.is_a?(Numeric)
         return if by.zero?
