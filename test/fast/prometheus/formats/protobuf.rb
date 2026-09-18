@@ -24,6 +24,28 @@ describe Fast::Prometheus::Formats::Protobuf do
   end
 
   describe ".render" do
+    it "encodes a labeled multi-series family byte-identically to one MetricFamily message" do
+      r = Fast::Prometheus::Registry.new
+      c = r.counter(:jobs_total, docstring: "jobs", labels: %i[queue state])
+      c.increment(by: 2, labels: { queue: "mail", state: "done" })
+      c.increment(labels: { queue: "mail", state: "failed" })
+      c.increment(by: 7, labels: { queue: "sms", state: "done" })
+
+      frame = split_frames(Fast::Prometheus::Formats::Protobuf.render(r.collect)).first
+      reference = Io::Prometheus::Client::MetricFamily.new(
+        name: "jobs_total", help: "jobs", type: :COUNTER,
+        metric: [%w[mail done 2], %w[mail failed 1], %w[sms done 7]].map do |queue, state, value|
+          Io::Prometheus::Client::Metric.new(
+            label: [Io::Prometheus::Client::LabelPair.new(name: "queue", value: queue),
+                    Io::Prometheus::Client::LabelPair.new(name: "state", value: state)],
+            counter: Io::Prometheus::Client::Counter.new(value: value.to_f)
+          )
+        end
+      )
+
+      expect(frame).to be(:==, Io::Prometheus::Client::MetricFamily.encode(reference))
+    end
+
     it "round-trips all five metric types" do
       r = Fast::Prometheus::Registry.new
       r.counter(:requests_total, docstring: "total requests").increment
