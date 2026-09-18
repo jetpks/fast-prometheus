@@ -10,6 +10,7 @@ bundle exec sus
 bundle exec rubocop
 bundle exec ruby script/e2e_prometheus_scrape.rb
 BENCH_QUICK=1 bundle exec ruby benchmark/observe.rb
+bundle exec ruby script/scrape_rss.rb --mode server --series 7500   # RSS per scrape, see header
 ```
 
 ## Style Rules
