@@ -52,11 +52,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- `benchmark/exposition.rb`: time, objects, malloc bytes, live native arenas
-  and GC runs per render of a 36k-series registry, for the text and protobuf
-  renderers against the two google-protobuf encoders this gem used to ship
-  and `prometheus-client`'s text formatter. `benchmark/observe.rb` now also
-  reports objects allocated per call against `prometheus-client`.
+- `benchmark/exposition.rb`, a scrape benchmark suite: end-to-end scrapes
+  through `Middleware::Exporter` over `Async::HTTP` in every content variant,
+  each stage of a scrape on its own (collect, render, gzip) with objects and
+  malloc bytes, the renderers against `prometheus-client`'s text formatter
+  from 1k to 100k series, and the protobuf renderer against the two
+  google-protobuf encoders this gem used to ship with live native arenas and
+  GC time. `benchmark/observe.rb` reports every metric operation against
+  `prometheus-client` as one table: i/s, speedup and objects per call.
 
 ## [0.2.0] - 2026-09-15
 

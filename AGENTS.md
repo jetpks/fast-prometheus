@@ -9,7 +9,8 @@ bundle install
 bundle exec sus
 bundle exec rubocop
 bundle exec ruby script/e2e_prometheus_scrape.rb
-BENCH_QUICK=1 bundle exec ruby benchmark/observe.rb
+BENCH_QUICK=1 bundle exec ruby benchmark/observe.rb      # observe/get vs prometheus-client, one table
+BENCH_QUICK=1 bundle exec ruby benchmark/exposition.rb   # scrape suite: end to end, by stage, by size, vs google-protobuf
 protoc --proto_path=proto --ruby_out=fixtures/pb proto/metrics.proto proto/opentelemetry/proto/**/*.proto   # regenerate the reference decoders (tests only)
 bundle exec ruby script/scrape_rss.rb --mode server --series 7500   # RSS per scrape, see header
 ```
