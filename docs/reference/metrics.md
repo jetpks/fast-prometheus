@@ -134,7 +134,7 @@ Methods
 | Signature | Returns | Notes |
 |---|---|---|
 | `observe(value, labels: {})` | unspecified | Records one observation. `duration.observe(0.042, labels: { method: "GET" })` |
-| `cumulative_buckets(labels: {})` | `Array<[Float, Integer]>` | Per-series cumulative bucket counts, ending with `[Float::INFINITY, count]`; all-zero counts for an unobserved series — never `nil`. |
+| `cumulative_buckets(labels: {})` | `Array<[Float, Integer]>` | Per-series cumulative bucket counts as frozen pairs in a frozen Array, ending with `[Float::INFINITY, count]`; all-zero counts for an unobserved series — never `nil`. |
 | `get(labels: {})` | `Hash` | A fresh `Hash` per call, built under the store lock: each bucket boundary's `to_s` in ascending order, then `"+Inf"`, then `"sum"`; bucket/`"+Inf"` values are cumulative `Integer` counts, `"sum"` is the `Float` sum. All-zero for an unobserved series — mutating the returned `Hash` never affects the metric. Same shape as `Prometheus::Client::Histogram#get`. |
 | `sum(labels: {})` | `Float` | Sum of observed values for a series; `0.0` for an unobserved series. |
 | `count(labels: {})` | `Integer` | Count of observed values for a series; `0` for an unobserved series. |

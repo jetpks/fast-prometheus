@@ -109,6 +109,8 @@ comparisons against `prometheus-client` and `google-protobuf`; see
 bundle exec sus
 bundle exec rubocop
 E2E_REQUIRED=1 ./integration/run
+BENCH_QUICK=1 bundle exec ruby benchmark/observe.rb      # every metric operation vs prometheus-client
+BENCH_QUICK=1 bundle exec ruby benchmark/exposition.rb   # the scrape suite
 ```
 
 See [how to verify a release build](docs/how-to/verify-a-release.md) for the pre-release rule.

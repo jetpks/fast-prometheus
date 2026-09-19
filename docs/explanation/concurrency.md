@@ -51,6 +51,25 @@ mid-registration.
 atomically with respect to every other mutation or read of that metric's store, including
 mutations from any of its `with_labels`-bound children.
 
+## Why copy, then render
+
+A snapshot is each metric's store duplicated under that metric's lock, with the
+histogram, summary and native histogram slots frozen into their value shapes on the way;
+counter and gauge values are Floats and need nothing. The lock is there for two things.
+Adding a key to a Hash that another thread is iterating raises in the inserting thread —
+inside a request minting a new series, not in the exporter — so nothing may iterate the
+live store while writers run. And a histogram observe writes sum, count and a bucket cell
+as three statements, a native histogram downscale replaces both bucket hashes and the
+schema, so an unlocked read can see a slot half-written.
+
+The copy is what lets the render run with no lock held. Rendering tens of thousands of
+series takes tens to hundreds of milliseconds, and holding the store lock for that long
+would stall every increment on that metric for the length of each scrape. The copy itself
+is a Hash dup, well under a millisecond and about 2 MiB at 36,000 series, so the lock is
+held for microseconds whatever the format or size. Consistency across the series of one
+metric falls out of copying under one lock; Prometheus only needs it within a series, but
+it costs nothing.
+
 ## Scheduler-aware locks
 
 Both `Monitor` and `Mutex` integrate with `Fiber.scheduler`: a fiber that contends a lock
