@@ -90,13 +90,18 @@ handled it; aggregating across processes is out of scope. See
 
 ## Performance
 
-Single process, locked, thread-safe by default (`benchmark-ips` comparisons
-against `prometheus-client`; see [the benchmarks page](docs/explanation/benchmarks.md) for the
-full run and conditions):
+Single process, locked, thread-safe by default (`benchmark-ips` and allocation
+comparisons against `prometheus-client` and `google-protobuf`; see
+[the benchmarks page](docs/explanation/benchmarks.md) for the full runs and conditions):
 
-- Bound counter (fast) is on par with prometheus-client's bound counter (1.04x)
-- Classic histogram observe is **3.0x** faster (1.71M vs 566K i/s)
-- Native histogram observe runs at **1.35M i/s** with no prometheus-client equivalent
+- A protobuf scrape of 36,000 series renders in **187 objects**, where the
+  `google-protobuf` encoder needed 3 million Ruby objects and 504k native arenas, and
+  in a tenth of the GC time
+- The text renderer allocates **66x fewer objects** than prometheus-client's formatter
+  for the same body, and renders it 2.8x faster
+- Bound counter increments allocate nothing and are **1.46x** faster than
+  prometheus-client's; classic histogram observe is **3.0x** faster
+- Native histogram observe runs at **1.33M i/s** with no prometheus-client equivalent
 
 ## Development
 

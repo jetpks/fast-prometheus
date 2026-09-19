@@ -110,3 +110,34 @@ Benchmark.ips do |x|
 
   x.compare!
 end
+
+# ── Allocations per operation ──────────────────────────────────────────────
+#
+# Ruby objects allocated by one call, averaged over a batch (GC.stat is
+# exact). The labels Hash is built once outside the batch, so the count is
+# what the library allocates, not the caller's literal.
+
+def objects_per_call(call, times = 10_000)
+  GC.start
+  before = GC.stat(:total_allocated_objects)
+  times.times { call.call }
+  (GC.stat(:total_allocated_objects) - before) / times.to_f
+end
+
+labels = { method: "GET", status: "200" }.freeze
+method_label = { method: "GET" }.freeze
+
+puts
+puts "Allocations per call (objects):"
+{
+  "counter labels (fast)" => -> { fast_counter.increment(labels: labels) },
+  "counter labels (prometheus-client)" => -> { pc_counter.increment(labels: labels) },
+  "counter bound (fast)" => -> { fast_bound.increment },
+  "counter bound (prometheus-client)" => -> { pc_bound.increment },
+  "histogram observe (fast)" => -> { fast_histogram.observe(0.042, labels: method_label) },
+  "histogram observe (prometheus-client)" => -> { pc_histogram.observe(0.042, labels: method_label) },
+  "native histogram observe (fast)" => -> { fast_native.observe(0.042, labels: method_label) }
+}.each do |name, call|
+  call.call
+  puts "  #{name.ljust(40)} #{objects_per_call(call).round(2)}"
+end

@@ -1,6 +1,13 @@
 # Changelog
 
-## Unreleased
+All notable changes to this project are documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+### Changed
 
 - Protobuf exposition and OTLP export no longer use `google-protobuf`. The
   Prometheus client model and the OTLP messages are declared with
@@ -15,13 +22,36 @@
   `Fast::Prometheus::OTLP::Proto::ExportMetricsServiceResponse`.
 - New `script/scrape_rss.rb`: an RSS-per-scrape harness for the exposition
   path (forked server scraped over keep-alive, or in-process loops).
+- `Formats::Text.render` and `Formats::Protobuf.render` allocate per sample
+  and per series, not per label: text appends every piece straight into the
+  output (one String per sample line, the value), and protobuf writes each
+  series' bytes with `Fast::Protowire::Wire` into one reused scratch buffer,
+  with no message objects. Over 5,200 series x 12 labels a text render went
+  from 100,840 to 10,631 objects and a protobuf render from 342,705 to 6,165
+  (0.114 s to 0.030 s); in the 36k-series server harness, protobuf+gzip
+  scrapes went from 0.92 s to 0.27 s and text from 0.20 s to 0.11 s.
+- `Registry#collect` builds each series' label Hash once and hands it to the
+  snapshot frozen (no `Array#zip` pairs, no second copy): 110,741 to 15,941
+  objects for the same registry. `Series`, `HistogramValue`, `SummaryValue`
+  and `NativeHistogramValue` are frozen `Struct`s rather than `Data`, since
+  `Data.new` allocates two objects besides the instance and a scrape builds
+  one per series; `Snapshot` and `MetricSnapshot` are still `Data`.
+  `Histogram#cumulative_buckets` and the native histogram bucket readers
+  return frozen pairs.
+- A bound or unlabeled `increment`/`observe`/`set` allocates nothing (the
+  `labels: {}` default is one shared frozen Hash and the store lock is taken
+  with `yield`, not a captured block); a labeled call allocates only its
+  resolved key. `test/fast/prometheus/allocations.rb` freezes these budgets.
+- `fast-protowire` is resolved from rubygems.org (`~> 0.1`); the
+  sibling-path override is gone from `gems.rb`.
 
-All notable changes to this project are documented in this file.
+### Added
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
-## [Unreleased]
+- `benchmark/exposition.rb`: time, objects, malloc bytes, live native arenas
+  and GC runs per render of a 36k-series registry, for the text and protobuf
+  renderers against the two google-protobuf encoders this gem used to ship
+  and `prometheus-client`'s text formatter. `benchmark/observe.rb` now also
+  reports objects allocated per call against `prometheus-client`.
 
 ## [0.2.0] - 2026-09-15
 
