@@ -99,8 +99,8 @@ comparisons against `prometheus-client` and `google-protobuf`; see
   in a hundredth of the GC time; taking the snapshot it reads is 1 ms and one Hash per metric
 - The text renderer allocates **66x fewer objects** than prometheus-client's formatter
   for the same body, and renders it 3.2x faster at 36,000 series
-- Bound counter and gauge writes allocate nothing and are **1.45x** faster than
-  prometheus-client's; histogram observe is **3.1x** faster and summary observe **3.3x**
+- Bound counter and gauge writes allocate nothing and are **1.4x** faster than
+  prometheus-client's; histogram observe is **3.0x** faster and summary observe **3.2x**
 - Native histogram observe runs at **1.32M i/s** with no prometheus-client equivalent
 
 ## Development

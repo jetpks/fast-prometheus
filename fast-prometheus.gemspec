@@ -25,6 +25,6 @@ Gem::Specification.new do |spec|
   spec.add_dependency "protocol-http", "~> 0.60"
   spec.add_dependency "async-http", "~> 0.95"
   spec.add_dependency "async-grpc", "~> 0.7"
-  spec.add_dependency "fast-protowire", "~> 0.1"
+  spec.add_dependency "fast-protowire", "~> 0.2"
   spec.add_dependency "console", "~> 1.37"
 end

@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-09-19
+
+### Changed
+
+- Requires [fast-protowire](https://github.com/jetpks/fast-protowire) `~> 0.2`,
+  whose encoder writes nested messages in place and allocates nothing per
+  message: the declared-message paths here (family headers, native
+  histograms, OTLP export) get that for free, and the `Wire` primitives the
+  per-series renderer uses append text as bytes with no binary copy on
+  Ruby 3.4+.
+- Benchmarks re-taken on the new dependency and republished on the
+  benchmarks page and in the README.
+
 ## [0.3.0] - 2026-09-18
 
 ### Changed
