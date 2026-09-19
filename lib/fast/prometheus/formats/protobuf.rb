@@ -44,7 +44,7 @@ module Fast
         end
 
         private_class_method def self.build_metric(series, type)
-          labels = series.labels.map { |name, value| Proto::LabelPair.new(name: name.to_s, value: value) }
+          labels = series.labels.map { |name, value| Proto::LabelPair.new(name: name.name, value: value) }
 
           case type
           when :counter
