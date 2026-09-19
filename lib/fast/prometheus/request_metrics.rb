@@ -25,12 +25,19 @@ module Fast
       # semantic conventions collapse an unrecognized method to.
       OTHER_METHOD = "_OTHER"
 
-      private_constant :LABELS, :METHODS, :OTHER_METHOD
+      # The kinds #record can drive under each name, and that each name
+      # promises whoever scrapes it. A Gauge answers #increment, but a gauge
+      # under "_total" is not a counter to a scraper; everything that answers
+      # #observe is a duration metric.
+      COUNTER_TYPES = %i[counter].freeze
+      DURATION_TYPES = %i[histogram native_histogram summary].freeze
+
+      private_constant :LABELS, :METHODS, :OTHER_METHOD, :COUNTER_TYPES, :DURATION_TYPES
 
       def initialize(registry:, native: false, prefix: "http_server")
         @registry = registry
-        @counter = validate_labels(ensure_counter(prefix))
-        @histogram = validate_labels(ensure_histogram(prefix, native))
+        @counter = validate(ensure_counter(prefix), COUNTER_TYPES)
+        @histogram = validate(ensure_histogram(prefix, native), DURATION_TYPES)
       end
 
       def record(method, status, started_at)
@@ -61,13 +68,19 @@ module Fast
       end
 
       # A metric already registered under one of these names is reused only if
-      # it declares this label set. Otherwise every request would raise
-      # InvalidLabelSet from inside the app's request path; raise here instead,
-      # once, where the mistaken declaration is.
-      def validate_labels(metric)
-        return metric if metric.labels == LABELS
+      # it is one of +types+ and declares this label set. Otherwise every
+      # request would raise from inside the app's request path; raise here
+      # instead, once, where the mistaken declaration is.
+      def validate(metric, types)
+        unless types.include?(metric.type)
+          raise InvalidMetricType, "#{metric.name} declares type #{metric.type.inspect}, not #{types.inspect}"
+        end
 
-        raise InvalidLabelSet, "#{metric.name} declares labels #{metric.labels.inspect}, not #{LABELS.inspect}"
+        unless metric.labels == LABELS
+          raise InvalidLabelSet, "#{metric.name} declares labels #{metric.labels.inspect}, not #{LABELS.inspect}"
+        end
+
+        metric
       end
     end
   end

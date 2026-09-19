@@ -69,6 +69,40 @@ describe Fast::Prometheus::Exposition do
     end
   end
 
+  describe "header encoding" do
+    def answer(header)
+      _, headers = Fast::Prometheus::Exposition.render(registry, accept: header, accept_encoding: header)
+      [headers["content-type"], headers["content-encoding"]]
+    end
+
+    # The same bytes as a test harness, io-stream and Puma hand them over.
+    def by_tag(bytes)
+      [Encoding::UTF_8, Encoding::BINARY, Encoding::ISO_8859_1].map { |enc| answer(bytes.dup.force_encoding(enc)) }
+    end
+
+    it "answers the header's bytes, whatever the String is tagged" do
+      {
+        "\xff".b => [text, nil],
+        "text/plain;q=\xff".b => [text, nil],
+        " \xffapplication/vnd.google.protobuf".b => [text, nil],
+        "caf\xe9, gzip".b => [text, "gzip"],
+        "\xff, application/vnd.google.protobuf, gzip".b => [protobuf, "gzip"]
+      }.each do |bytes, answer|
+        expect(by_tag(bytes)).to be(:==, [answer] * 3)
+      end
+    end
+
+    it "reads invalid bytes of any length as no preference" do
+      expect(by_tag(("\xff" * 100_000).b)).to be(:==, [[text, nil]] * 3)
+    end
+
+    it "reads a header whose encoding is not ASCII-compatible as no preference" do
+      ["gzip".encode("UTF-16LE"), "application/vnd.google.protobuf".encode("UTF-16BE")].each do |header|
+        expect(answer(header)).to be(:==, [text, nil])
+      end
+    end
+  end
+
   describe "content coding negotiation" do
     it "gzips when gzip is acceptable, whatever its case and position" do
       ["gzip", "GZIP", "deflate, gzip;q=0.5", "gzip, deflate, br"].each do |accept_encoding|

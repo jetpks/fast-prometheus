@@ -88,9 +88,25 @@ describe Fast::Prometheus::Middleware::Instrumentation do
       expect { Fast::Prometheus::Middleware::Instrumentation.new(delegate, registry: registry) }
         .to raise_exception(Fast::Prometheus::InvalidLabelSet)
     end
+
+    it "raises at construction when a metric is not the kind its name promises" do
+      registry = Fast::Prometheus::Registry.new
+      registry.gauge(:http_server_requests_total, docstring: "mine", labels: %i[method status])
+
+      expect { Fast::Prometheus::Middleware::Instrumentation.new(delegate, registry: registry) }
+        .to raise_exception(Fast::Prometheus::InvalidMetricType)
+    end
   end
 
   describe "raising delegate" do
+    let(:failing_histogram) do
+      Class.new(Fast::Prometheus::Histogram) do
+        def observe(*, **)
+          raise "observe failed"
+        end
+      end
+    end
+
     it "records status 500 and re-raises" do
       registry = Fast::Prometheus::Registry.new
       delegate = Protocol::HTTP::Middleware.for do |_request|
@@ -107,9 +123,10 @@ describe Fast::Prometheus::Middleware::Instrumentation do
 
     it "propagates the delegate's exception even when recording fails" do
       registry = Fast::Prometheus::Registry.new
-      # A Gauge under the duration metric's name passes the label check and then
-      # has no #observe, so recording the 500 raises on top of the delegate's.
-      registry.gauge(:http_server_request_duration_seconds, docstring: "x", labels: %i[method status])
+      # A duration metric of the right kind and labels whose observation fails,
+      # so recording the 500 raises on top of the delegate's exception.
+      registry.register(failing_histogram.new(:http_server_request_duration_seconds,
+                                              docstring: "x", labels: %i[method status]))
       delegate = Protocol::HTTP::Middleware.for do |_request|
         raise "boom"
       end

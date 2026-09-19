@@ -13,11 +13,12 @@ module Fast
     # header values. Shared by Middleware::Exporter and Rack::Exporter so
     # negotiation and compression exist exactly once.
     #
-    # Both headers are read as RFC 9110 lists: comma-separated members, each a
-    # token with optional ";"-parameters. The token is matched whole and
-    # case-insensitively, parameters other than "q" are ignored, and "q=0" is a
-    # refusal. Nothing here raises: a header we cannot make sense of simply
-    # scores nothing, which is the text format and no compression.
+    # Both headers are read as RFC 9110 lists over their bytes: comma-separated
+    # members, each a token with optional ";"-parameters. The token is matched
+    # whole and case-insensitively, parameters other than "q" are ignored, and
+    # "q=0" is a refusal. Nothing here raises: a header we cannot make sense of
+    # — invalid bytes included — simply scores nothing, which is the text
+    # format and no compression.
     module Exposition
       PROTOBUF_ACCEPT = "application/vnd.google.protobuf"
       TEXT_ACCEPT = "text/plain"
@@ -30,11 +31,11 @@ module Fast
       private_constant :FORMAT_MAP
 
       def self.render(registry, accept:, accept_encoding:)
-        format, content_type = FORMAT_MAP[protobuf?(accept)]
+        format, content_type = FORMAT_MAP[protobuf?(byte_view(accept))]
         body = format.render(registry.collect)
         headers = { "content-type" => content_type }
 
-        if gzip?(accept_encoding)
+        if gzip?(byte_view(accept_encoding))
           body = Zlib.gzip(body)
           headers["content-encoding"] = "gzip"
         end
@@ -53,12 +54,22 @@ module Fast
         quality_of(accept_encoding, GZIP_CODING).positive?
       end
 
+      # The header's bytes, whatever String the server handed us: negotiation
+      # answers the bytes and nothing else. #strip and #casecmp? raise on a
+      # UTF-8-tagged String holding invalid ones — and io-stream, Puma and a
+      # test harness tag the same bytes BINARY, BINARY and UTF-8 — while BINARY
+      # bytes are always valid, so nothing below can raise. One String per
+      # header on a path that renders the whole registry anyway.
+      private_class_method def self.byte_view(header)
+        header.to_s.b
+      end
+
       # The highest q value +token+ carries across the members of a list header:
       # 0.0 when it is absent or refused with q=0, 1.0 when it is listed without
       # one. #split with a block keeps a long header's members out of an Array.
       private_class_method def self.quality_of(header, token)
         best = 0.0
-        header.to_s.split(",") do |member|
+        header.split(",") do |member|
           name, _, parameters = member.partition(";")
           next unless name.strip.casecmp?(token)
 

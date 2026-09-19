@@ -6,6 +6,7 @@ module Fast
     class InvalidMetricName < Error; end
     class InvalidLabelName < Error; end
     class InvalidLabelSet < Error; end
+    class InvalidMetricType < Error; end
     class DuplicateMetric < Error; end
   end
 end

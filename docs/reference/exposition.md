@@ -33,6 +33,7 @@ comma-separated members, each a token with optional `;`-parameters.
 | `q=0` is a refusal, an absent `q` is `1` | `gzip;q=0` and `application/vnd.google.protobuf;q=0` are not acceptable. |
 | Between `application/vnd.google.protobuf` and `text/plain`, the higher `q` wins; a tie is protobuf | Prometheus' own `Accept` (protobuf at `q=0.7`, text at `q=0.5`) selects protobuf; the reverse selects text. |
 | Anything else is no preference | An absent, empty or unparseable header — of any length — selects text with no compression, and never raises. |
+| The header is read as bytes, whatever it is tagged | The same bytes always give the same answer, whether the String arrives tagged `UTF-8` (a Rack test harness), `BINARY` (Puma, `io-stream`) or anything else; invalid bytes score nothing rather than raising, and a well-formed member beside them still counts (`"\xff, application/vnd.google.protobuf"` selects protobuf). A header in an encoding that is not ASCII-compatible (`UTF-16`, `UTF-32`) matches no token, so it is no preference. |
 
 Text is the fallback, not a negotiated choice: a request accepting neither format (`application/json`)
 is answered with text rather than `406`.
@@ -99,10 +100,14 @@ nothing reclaims a series once it exists.
 ### Reusing a pre-registered metric
 
 Both metrics are obtained via `registry.fetch_or_register`, so a metric already registered under
-either name — by application code, at boot — is reused instead of re-registered, as long as it
-declares `labels: %i[method status]`. One declaring anything else raises `InvalidLabelSet` from
-the instrumentation's constructor, where the mistaken declaration is, rather than once per
-request from inside the app's request path.
+either name — by application code, at boot — is reused instead of re-registered, as long as it is
+one the recording can drive: it declares `labels: %i[method status]`, and it is the kind its name
+promises — type `:counter` under `<prefix>_requests_total`, `:histogram`, `:native_histogram` or
+`:summary` under `<prefix>_request_duration_seconds`. One declaring other labels raises
+`InvalidLabelSet`; one of another kind raises `InvalidMetricType` (a `Gauge` answers `increment`,
+but a gauge is not what a `_total` name promises whoever scrapes it). Both come from the
+instrumentation's constructor, where the mistaken declaration is, rather than once per request
+from inside the app's request path.
 
 ## `Rack::Exporter`
 
