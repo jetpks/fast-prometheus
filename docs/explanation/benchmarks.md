@@ -47,9 +47,10 @@ Taking the snapshot (`Registry#collect`) is one copy of each metric's store unde
 lock: 1 ms, a few hundred objects and 2 MiB, whatever the label count. The text renderer
 allocates one String per sample line (the value's `to_s`) and nothing per label. The
 protobuf renderer writes each series' bytes straight to the wire from the snapshot, no
-message objects, so a render of any size is a few dozen objects: the family headers and
-one scratch buffer (and on Ruby 3.4+, fast-protowire 0.2.0 appends each label's tag, size
-and text in one call). What remains of its 32 MiB is the body and the label strings copied
+message objects, each series and each family written in place behind a length prefix
+filled in afterwards, so a render of any size is a few dozen objects: the family headers
+(and on Ruby 3.4+, fast-protowire 0.2.0 appends each label's tag, size and text in one
+call). What remains of its 32 MiB is the body and the label strings copied
 into the buffer. gzip is `Zlib.gzip` on the finished body.
 
 ### By registry size

@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- `Formats::Protobuf.render` writes each family and each series straight
+  into the output behind a length prefix reserved first and filled in after
+  (`Fast::Protowire::Wire.reserve_length` / `close_length` /
+  `append_length_delimited_from`), instead of encoding the family header
+  to a String and copying every series out of a scratch buffer. Same
+  bytes; at 36,000 series x 12 labels a render went from 0.153 s and 31
+  objects to 0.142 s and 26.
+
 ## [0.3.1] - 2026-09-19
 
 ### Changed

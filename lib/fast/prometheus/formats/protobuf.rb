@@ -12,10 +12,10 @@ module Fast
       # Each family's header is a declared Proto::MetricFamily; the series
       # under it are written straight to the wire with Fast::Protowire::Wire,
       # no LabelPair/Metric/Counter objects, because a scrape's series count
-      # is the one thing here that is large. A series' bytes go into one
-      # scratch buffer reused for the whole render and are copied under the
-      # family's metric tag, so rendering allocates per series only what
-      # Array#pack needs for a double. Native histograms, few and irregular,
+      # is the one thing here that is large. Each series' bytes are written
+      # straight into the output behind a length prefix filled in after them,
+      # so rendering allocates nothing per series and copies nothing. Native
+      # histograms, few and irregular,
       # still go through Proto::Histogram. Bytes are identical to what the
       # declared classes (and google-protobuf) produce; the tests check.
       module Protobuf
@@ -64,32 +64,31 @@ module Fast
         DOUBLE_SIZE = 9
         private_constant :DOUBLE_SIZE
 
-        # One varint-length-prefixed MetricFamily frame per metric.
+        # One varint-length-prefixed MetricFamily frame per metric, each
+        # written straight into the output behind a length prefix reserved
+        # first and filled in after (see Fast::Protowire::Wire).
         def self.render(snapshot)
-          scratch = String.new
-          snapshot.metrics.each_with_object(String.new) do |ms, buffer|
-            family = encode_metric_family(ms, scratch)
-            Fast::Protowire::Wire.append_varint(buffer, family.bytesize)
-            buffer << family
+          snapshot.metrics.each_with_object(String.new) do |ms, out|
+            start = Fast::Protowire::Wire.reserve_length(out)
+            append_metric_family(out, ms)
+            Fast::Protowire::Wire.close_length(out, start)
           end
         end
 
         # A family's bytes are its header (name, help, type) followed by one
-        # metric entry per series, each written into +scratch+ and copied.
-        private_class_method def self.encode_metric_family(metric_snapshot, scratch)
-          header = Proto::MetricFamily.new(name: metric_snapshot.name.name, help: metric_snapshot.docstring,
-                                           type: TYPE_MAP.fetch(metric_snapshot.type))
+        # metric entry per series, in place. A family's series are alike, so
+        # the entry prefix width carries from one to the next.
+        private_class_method def self.append_metric_family(out, metric_snapshot)
+          Proto::MetricFamily.new(name: metric_snapshot.name.name, help: metric_snapshot.docstring,
+                                  type: TYPE_MAP.fetch(metric_snapshot.type)).encode(out)
           type = metric_snapshot.type
           names = metric_snapshot.label_names
-          buffer = header.encode
+          width = 1
           metric_snapshot.series.each_pair do |values, value|
-            scratch.clear
-            append_metric(scratch, names, values, value, type)
-            buffer << FAMILY_METRIC
-            Fast::Protowire::Wire.append_varint(buffer, scratch.bytesize)
-            buffer << scratch
+            width = Fast::Protowire::Wire.append_length_delimited_from(out, FAMILY_METRIC, width) do |buffer|
+              append_metric(buffer, names, values, value, type)
+            end
           end
-          buffer
         end
 
         # Metric: labels (1) then the one value field for the type, in
