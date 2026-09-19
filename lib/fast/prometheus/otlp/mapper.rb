@@ -11,12 +11,20 @@ module Fast
         CUMULATIVE = :AGGREGATION_TEMPORALITY_CUMULATIVE
         private_constant :CUMULATIVE
 
+        # OTLP carries one contiguous bucket-count array per side, so an export
+        # must never size an Array by the distance between two observations:
+        # past this many slots a data point drops to a coarser scale instead.
+        MAX_DENSE_BUCKETS = 1024
+        private_constant :MAX_DENSE_BUCKETS
+
         def initialize(resource_attributes: {}, start_time: Time.now)
-          @resource_attributes = resource_attributes.map { |k, v| kv(k, v) }
-          @start_time_unix_nano = (start_time.to_f * 1_000_000_000).to_i
+          @resource_attributes = resource_attributes.map { |key, value| kv(key, any_value(value)) }
+          @start_time_unix_nano = unix_nano(start_time)
         end
 
         def request(snapshot)
+          time_unix_nano = unix_nano(snapshot.taken_at)
+
           Proto::ExportMetricsServiceRequest.new(
             resource_metrics: [
               Proto::ResourceMetrics.new(
@@ -29,7 +37,7 @@ module Fast
                       name: "fast-prometheus",
                       version: Fast::Prometheus::VERSION
                     ),
-                    metrics: snapshot.metrics.map { |ms| build_metric(ms, snapshot.taken_at) }
+                    metrics: snapshot.metrics.map { |ms| build_metric(ms, time_unix_nano) }
                   )
                 ]
               )
@@ -39,9 +47,12 @@ module Fast
 
         private
 
-        def build_metric(metric_snapshot, taken_at)
-          time_unix_nano = (taken_at.to_f * 1_000_000_000).to_i
+        # Exact nanoseconds: at epoch magnitudes a Float loses the low ~256ns.
+        def unix_nano(time)
+          (time.tv_sec * 1_000_000_000) + time.tv_nsec
+        end
 
+        def build_metric(metric_snapshot, time_unix_nano)
           Proto::Metric.new(
             name: metric_snapshot.name.to_s,
             description: metric_snapshot.docstring,
@@ -154,19 +165,77 @@ module Fast
           )
         end
 
+        # A data point carries only the series' finite observations: OTLP has no
+        # bucket for an infinity and no count for a NaN, so both are dropped —
+        # from the buckets, from +count+, and from +sum+, which is left absent
+        # when the series' accumulated sum is no longer finite.
         def exponential_histogram_data_point(attributes, value, time_unix_nano)
+          positive = finite_buckets(value.positive_buckets, value.schema)
+          negative = finite_buckets(value.negative_buckets, value.schema)
+          reduction = scale_reduction(positive, negative)
+          positive = merge_buckets(positive, reduction)
+          negative = merge_buckets(negative, reduction)
+
           Proto::ExponentialHistogramDataPoint.new(
             attributes: attributes,
             start_time_unix_nano: @start_time_unix_nano,
             time_unix_nano: time_unix_nano,
-            count: value.count,
-            sum: value.sum,
-            scale: value.schema,
+            count: value.zero_count + bucket_total(positive) + bucket_total(negative),
+            sum: (value.sum if value.sum.finite?),
+            scale: value.schema - reduction,
             zero_count: value.zero_count,
             zero_threshold: value.zero_threshold,
-            positive: dense_buckets(value.positive_buckets),
-            negative: dense_buckets(value.negative_buckets)
+            positive: dense_buckets(positive),
+            negative: dense_buckets(negative)
           )
+        end
+
+        # NativeHistogram clamps a ±Inf observation to MAX_BUCKET_INDEX, and
+        # downscaling halves that index along with every other one. Either way
+        # it stays above the index of any finite observation, which |value| <=
+        # Float::MAX puts at 1024 * 2**schema at the most, so it sorts last and
+        # is the only pair up there.
+        def finite_buckets(buckets, schema)
+          return buckets if buckets.empty? || buckets.last.first <= 1024 * (2.0**schema)
+
+          buckets[0..-2]
+        end
+
+        def bucket_total(buckets)
+          buckets.sum { |_, count| count }
+        end
+
+        # How many times both sides' resolution has to halve for each dense
+        # array to fit MAX_DENSE_BUCKETS. A data point carries one scale, so the
+        # two sides reduce together.
+        def scale_reduction(positive, negative)
+          reduction = 0
+          reduction += 1 while dense_length(positive, reduction) > MAX_DENSE_BUCKETS ||
+                               dense_length(negative, reduction) > MAX_DENSE_BUCKETS
+          reduction
+        end
+
+        def dense_length(buckets, reduction)
+          return 0 if buckets.empty?
+
+          coarse_index(buckets.last.first, reduction) - coarse_index(buckets.first.first, reduction) + 1
+        end
+
+        # Merge each run of 2**reduction adjacent buckets into one, as
+        # NativeHistogram#downscale does for the schema it reports.
+        def merge_buckets(buckets, reduction)
+          return buckets if reduction.zero?
+
+          buckets.each_with_object({}) do |(index, count), merged|
+            key = coarse_index(index, reduction)
+            merged[key] = (merged[key] || 0) + count
+          end.to_a
+        end
+
+        # The bucket +index+ falls into after halving resolution +reduction+
+        # times: rounded toward the wider bucket, as downscaling rounds.
+        def coarse_index(index, reduction)
+          -(-index / (1 << reduction))
         end
 
         # Convert sparse [[prom_idx, count], ...] to OTLP Buckets{offset, bucket_counts}.
@@ -190,14 +259,23 @@ module Fast
         end
 
         def build_attributes(labels)
-          labels.map { |k, v| kv(k.to_s, v.to_s) }
+          labels.map { |name, value| kv(name, Proto::AnyValue.new(string_value: value.to_s)) }
         end
 
-        def kv(key, value)
-          Proto::KeyValue.new(
-            key: key,
-            value: Proto::AnyValue.new(string_value: value)
-          )
+        def kv(key, any_value)
+          Proto::KeyValue.new(key: key.to_s, value: any_value)
+        end
+
+        # A resource attribute keeps its Ruby type where OTLP has a member for
+        # it; anything else goes over as its +to_s+.
+        def any_value(value)
+          case value
+          when String then Proto::AnyValue.new(string_value: value)
+          when Integer then Proto::AnyValue.new(int_value: value)
+          when Float then Proto::AnyValue.new(double_value: value)
+          when true, false then Proto::AnyValue.new(bool_value: value)
+          else Proto::AnyValue.new(string_value: value.to_s)
+          end
         end
       end
     end
