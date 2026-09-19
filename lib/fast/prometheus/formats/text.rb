@@ -11,6 +11,10 @@ module Fast
       # Every piece is appended straight to the output buffer: no line, label
       # or name is built as its own String first, so a render allocates one
       # String per sample (the value's to_s) and nothing per label.
+      #
+      # The buffer is UTF-8 from the start and the snapshot's docstrings and
+      # label values are already valid UTF-8 (see Metric), so the body is
+      # always a UTF-8-tagged, valid String whatever it holds.
       module Text
         CONTENT_TYPE = "text/plain; version=0.0.4; charset=utf-8"
 
@@ -21,7 +25,7 @@ module Fast
         LABEL_REPLACE = { "\\" => "\\\\", '"' => '\\"', "\n" => "\\n" }.freeze
 
         def self.render(snapshot)
-          snapshot.metrics.each_with_object(String.new) do |metric, output|
+          snapshot.metrics.each_with_object(String.new(encoding: Encoding::UTF_8)) do |metric, output|
             next if metric.type == :native_histogram
 
             name = metric.name.name

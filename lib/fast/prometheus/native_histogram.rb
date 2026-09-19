@@ -63,8 +63,11 @@ module Fast
         :native_histogram
       end
 
-      # Record an observation. Never raises — NaN/±Inf are handled gracefully.
+      # Record an observation. A non-Numeric is an ArgumentError, as it is on
+      # every other type; NaN and ±Inf are handled gracefully and never raise.
       def observe(value, labels: NO_LABELS)
+        raise ArgumentError, "value must be a numeric" unless value.is_a?(Numeric)
+
         v = value.to_f
         key = resolve(labels)
 

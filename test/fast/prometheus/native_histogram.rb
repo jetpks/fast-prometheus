@@ -131,6 +131,20 @@ describe Fast::Prometheus::NativeHistogram do
       expect(slot.negative_buckets).to be(:==, [[Fast::Prometheus::NativeHistogram::MAX_BUCKET_INDEX, 1]])
     end
 
+    it "raises on a non-Numeric value" do
+      nh = Fast::Prometheus::NativeHistogram.new(:t, docstring: "t")
+      [nil, "1.5", :sym, [1]].each do |bad|
+        expect { nh.observe(bad) }.to raise_exception(ArgumentError)
+      end
+    end
+
+    it "observes any Numeric" do
+      nh = Fast::Prometheus::NativeHistogram.new(:t, docstring: "t")
+      nh.observe(1)
+      nh.observe(2.5r)
+      expect(nh.get.count).to be(:==, 2)
+    end
+
     it "NaN/±Inf never raise" do
       nh = Fast::Prometheus::NativeHistogram.new(:t, docstring: "t")
       expect { nh.observe(Float::NAN) }.not.to raise_exception

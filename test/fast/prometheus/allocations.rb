@@ -47,6 +47,22 @@ describe "allocations" do
     expect(allocations(100) { counter.increment(labels: labels) }).to be(:<, 2)
   end
 
+  # Normalizing a label value to UTF-8 allocates nothing when it already is
+  # valid UTF-8, even for a String the metric has never seen: building the
+  # value costs what it costs, and the increment still adds only its key. The
+  # budget is measured against that baseline so it holds whatever a fresh
+  # non-ASCII String costs on the day.
+  it "resolves a new UTF-8 label value per call with one object beyond it" do
+    counter = registry.counter(:hits, docstring: "hits", labels: [:path])
+    labels = { path: "/café" }
+    counter.increment(labels: labels)
+    value = allocations(100) { labels[:path] = +"/café" }
+    expect(allocations(100) do
+      labels[:path] = +"/café"
+      counter.increment(labels: labels)
+    end).to be(:<, value + 2)
+  end
+
   it "observes a labeled histogram with one object (its key)" do
     histogram = registry.histogram(:seconds, docstring: "seconds", labels: [:method])
     labels = { method: "GET" }

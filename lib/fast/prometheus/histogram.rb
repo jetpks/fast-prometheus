@@ -48,9 +48,7 @@ module Fast
         raise ArgumentError, "buckets must contain only Numeric values" unless buckets.all? { |b| b.is_a?(Numeric) }
         raise ArgumentError, "buckets must be strictly ascending" unless buckets.each_cons(2).all? { |a, b| a < b }
 
-        raise InvalidLabelName, "label :le is reserved" if labels.include?(:le)
-
-        @buckets = buckets
+        @buckets = buckets.dup.freeze
         super(name, docstring: docstring, labels: labels, preset_labels: preset_labels, store: store)
       end
 
@@ -120,6 +118,12 @@ module Fast
 
       def construction_options
         { buckets: @buckets }
+      end
+
+      def validate_label_names(labels)
+        raise InvalidLabelName, "reserved label name: :le" if labels.include?(:le)
+
+        super
       end
 
       private
