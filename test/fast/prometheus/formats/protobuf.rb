@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "fast/prometheus"
+require "reference"
 require "fast/prometheus/formats/protobuf"
 
 describe Fast::Prometheus::Formats::Protobuf do

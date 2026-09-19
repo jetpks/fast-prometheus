@@ -10,8 +10,13 @@ bundle exec sus
 bundle exec rubocop
 bundle exec ruby script/e2e_prometheus_scrape.rb
 BENCH_QUICK=1 bundle exec ruby benchmark/observe.rb
+protoc --proto_path=proto --ruby_out=fixtures/pb proto/metrics.proto proto/opentelemetry/proto/**/*.proto   # regenerate the reference decoders (tests only)
 bundle exec ruby script/scrape_rss.rb --mode server --series 7500   # RSS per scrape, see header
 ```
+
+## Dependencies
+
+- `google-protobuf` is a development dependency only: tests decode the library's output with it (`fixtures/reference.rb`). Runtime protobuf is `fast-protowire`; the message declarations live in `lib/fast/prometheus/formats/metrics_proto.rb` and `lib/fast/prometheus/otlp/proto.rb` and must mirror `proto/`.
 
 ## Style Rules
 

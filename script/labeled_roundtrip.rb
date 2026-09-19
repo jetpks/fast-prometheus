@@ -76,7 +76,7 @@ if frames.size != expect_names.size
 end
 
 frames.each_with_index do |frame, idx|
-  mf = Io::Prometheus::Client::MetricFamily.decode(frame)
+  mf = Fast::Prometheus::Formats::Protobuf::Proto::MetricFamily.decode(frame)
 
   if mf.name != expect_names[idx]
     puts "ERROR: frame #{idx}: expected name #{expect_names[idx]}, got #{mf.name}"

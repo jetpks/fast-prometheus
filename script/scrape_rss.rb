@@ -171,20 +171,25 @@ module ScrapeRSS
   end
 
   # One measurement of the process under test. The arena count is the live
-  # google-protobuf message population (one arena per message); their memsize
-  # is deliberately not summed, since memsize_of_all walks each arena's fused
-  # chain and goes quadratic on a large family.
+  # google-protobuf message population (one arena per message) when that gem
+  # is loaded — it is, when the harness runs against a release that used it
+  # — and 0 otherwise. Their memsize is deliberately not summed, since
+  # memsize_of_all walks each arena's fused chain and goes quadratic.
   module Sample
-    ARENA = Google::Protobuf::Internal::Arena
-
     def self.take(pid = Process.pid, collect: false)
       GC.start if collect
       {
         rss_mib: rss_mib(pid),
         live_slots: GC.stat(:heap_live_slots),
-        arenas: ObjectSpace.each_object(ARENA).count,
+        arenas: arenas,
         fibers: ObjectSpace.each_object(Fiber).count(&:alive?)
       }
+    end
+
+    def self.arenas
+      return 0 unless defined?(Google::Protobuf::Internal::Arena)
+
+      ObjectSpace.each_object(Google::Protobuf::Internal::Arena).count
     end
 
     def self.rss_mib(pid = Process.pid)

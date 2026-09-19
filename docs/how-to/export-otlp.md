@@ -71,11 +71,8 @@ you. You need an `Async` reactor and a reachable OTLP endpoint.
 Your metrics land in the OTLP receiver as OpenTelemetry `Sum`/`Gauge`/`Histogram`/`Summary`/
 `ExponentialHistogram` data points, one export per call (or one per `interval`).
 
-If your process also loads the `opentelemetry-proto` gem, expect a duplicate protobuf
-descriptor registration warning at boot: `fast-prometheus` vendors its own copy of the
-`Opentelemetry::Proto` descriptors under `fast/prometheus/otlp/pb`, and having both loaded in
-the same process registers the same descriptors twice. This only affects processes that
-require an OTLP surface.
+The OTLP messages are declared with fast-protowire rather than google-protobuf, so loading
+the `opentelemetry-proto` gem in the same process registers nothing twice.
 
 See [Reference: OTLP export](../reference/otlp.md) for the full constructor keyword list and
 `OTLP::Mapper`, and [Reference: require paths and dependencies](../reference/require-paths.md)

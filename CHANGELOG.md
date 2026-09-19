@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+- Protobuf exposition and OTLP export no longer use `google-protobuf`. The
+  Prometheus client model and the OTLP messages are declared with
+  [fast-protowire](https://github.com/jetpks/fast-protowire), a wire-format
+  library with no native extension: no per-message arenas, no object cache,
+  no descriptor pool. Output is byte-identical (tests decode it with
+  google-protobuf as a development dependency). `Formats::Protobuf.render`
+  encodes each series on its own and appends it to the family's bytes, so a
+  36k-series scrape peaks at roughly the body size instead of ~320 MiB.
+- `OTLP::Mapper#request` returns a `Fast::Prometheus::OTLP::Proto::
+  ExportMetricsServiceRequest`; the gRPC interface's response class is
+  `Fast::Prometheus::OTLP::Proto::ExportMetricsServiceResponse`.
+- New `script/scrape_rss.rb`: an RSS-per-scrape harness for the exposition
+  path (forked server scraped over keep-alive, or in-process loops).
+
 All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),

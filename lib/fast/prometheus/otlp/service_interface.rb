@@ -2,7 +2,7 @@
 
 require "fast/prometheus"
 require "protocol/grpc/interface"
-require_relative "mapper"
+require_relative "proto"
 
 module Fast
   module Prometheus
@@ -10,8 +10,8 @@ module Fast
       # Protocol::GRPC::Interface for opentelemetry.proto.collector.metrics.v1.MetricsService.
       class MetricsServiceInterface < Protocol::GRPC::Interface
         rpc :Export,
-            request_class: Opentelemetry::Proto::Collector::Metrics::V1::ExportMetricsServiceRequest,
-            response_class: Opentelemetry::Proto::Collector::Metrics::V1::ExportMetricsServiceResponse
+            request_class: Proto::ExportMetricsServiceRequest,
+            response_class: Proto::ExportMetricsServiceResponse
       end
     end
   end

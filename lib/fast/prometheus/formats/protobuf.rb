@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 require "fast/prometheus"
-require_relative "metrics_pb"
+require_relative "metrics_proto"
 
 module Fast
   module Prometheus
@@ -10,92 +10,69 @@ module Fast
         CONTENT_TYPE = "application/vnd.google.protobuf; proto=io.prometheus.client.MetricFamily; encoding=delimited"
 
         TYPE_MAP = {
-          counter: Io::Prometheus::Client::MetricType::COUNTER,
-          gauge: Io::Prometheus::Client::MetricType::GAUGE,
-          summary: Io::Prometheus::Client::MetricType::SUMMARY,
-          histogram: Io::Prometheus::Client::MetricType::HISTOGRAM,
-          native_histogram: Io::Prometheus::Client::MetricType::HISTOGRAM
+          counter: :COUNTER,
+          gauge: :GAUGE,
+          summary: :SUMMARY,
+          histogram: :HISTOGRAM,
+          native_histogram: :HISTOGRAM
         }.freeze
         private_constant :TYPE_MAP
 
         # MetricFamily.metric is field 4, wire type 2 (length-delimited).
-        METRIC_FIELD_TAG = [(4 << 3) | 2].pack("C").freeze
-        private_constant :METRIC_FIELD_TAG
+        METRIC_TAG = Fast::Protowire::Wire.tag(4, Fast::Protowire::Wire::LENGTH_DELIMITED)
+        private_constant :METRIC_TAG
 
+        # One varint-length-prefixed MetricFamily frame per metric.
         def self.render(snapshot)
           snapshot.metrics.each_with_object(String.new) do |ms, buffer|
-            buffer << frame(encode_metric_family(ms))
+            family = encode_metric_family(ms)
+            Fast::Protowire::Wire.append_varint(buffer, family.bytesize)
+            buffer << family
           end
         end
 
         # A family's bytes are its header (name, help, type) followed by one
-        # field-4 entry per series. Encoding each Metric on its own and
-        # appending it yields the same bytes as encoding one MetricFamily that
-        # carries every Metric, without holding every series' protobuf message
-        # (and its native arena) alive at once: a 36k-series family peaks near
-        # 50 MiB of RSS this way instead of ~320 MiB.
+        # field-4 entry per series, each Metric encoded and dropped as it
+        # goes, so a family of any size is never one object graph.
         private_class_method def self.encode_metric_family(metric_snapshot)
-          header = Io::Prometheus::Client::MetricFamily.new(
-            name: metric_snapshot.name.to_s,
-            help: metric_snapshot.docstring,
-            type: TYPE_MAP.fetch(metric_snapshot.type)
-          )
-          metric_snapshot.series.each_with_object(Io::Prometheus::Client::MetricFamily.encode(header)) do |s, bytes|
-            bytes << METRIC_FIELD_TAG << frame(encode_metric(s, metric_snapshot.type))
+          header = Proto::MetricFamily.new(name: metric_snapshot.name.to_s, help: metric_snapshot.docstring,
+                                           type: TYPE_MAP.fetch(metric_snapshot.type))
+          metric_snapshot.series.each_with_object(header.encode) do |series, buffer|
+            Fast::Protowire::Wire.append_length_delimited(buffer, METRIC_TAG,
+                                                          build_metric(series, metric_snapshot.type).encode)
           end
-        end
-
-        private_class_method def self.encode_metric(series, type)
-          Io::Prometheus::Client::Metric.encode(build_metric(series, type))
         end
 
         private_class_method def self.build_metric(series, type)
-          labels = series.labels.map do |name, value|
-            Io::Prometheus::Client::LabelPair.new(name: name.to_s, value: value)
-          end
+          labels = series.labels.map { |name, value| Proto::LabelPair.new(name: name.to_s, value: value) }
 
           case type
           when :counter
-            Io::Prometheus::Client::Metric.new(
-              label: labels,
-              counter: Io::Prometheus::Client::Counter.new(value: series.value)
-            )
+            Proto::Metric.new(label: labels, counter: Proto::Counter.new(value: series.value))
           when :gauge
-            Io::Prometheus::Client::Metric.new(
-              label: labels,
-              gauge: Io::Prometheus::Client::Gauge.new(value: series.value)
-            )
+            Proto::Metric.new(label: labels, gauge: Proto::Gauge.new(value: series.value))
           when :summary
-            Io::Prometheus::Client::Metric.new(
+            Proto::Metric.new(
               label: labels,
-              summary: Io::Prometheus::Client::Summary.new(
-                sample_count: series.value.count,
-                sample_sum: series.value.sum
-              )
+              summary: Proto::Summary.new(sample_count: series.value.count, sample_sum: series.value.sum)
             )
           when :histogram
             buckets = series.value.cumulative_buckets.map do |bound, count|
-              Io::Prometheus::Client::Bucket.new(
-                upper_bound: bound,
-                cumulative_count: count
-              )
+              Proto::Bucket.new(upper_bound: bound, cumulative_count: count)
             end
-            Io::Prometheus::Client::Metric.new(
+            Proto::Metric.new(
               label: labels,
-              histogram: Io::Prometheus::Client::Histogram.new(
-                sample_count: series.value.count,
-                sample_sum: series.value.sum,
-                bucket: buckets
-              )
+              histogram: Proto::Histogram.new(sample_count: series.value.count, sample_sum: series.value.sum,
+                                              bucket: buckets)
             )
           when :native_histogram
             nv = series.value
             pos_spans, pos_deltas = build_spans_deltas(nv.positive_buckets)
             neg_spans, neg_deltas = build_spans_deltas(nv.negative_buckets)
 
-            Io::Prometheus::Client::Metric.new(
+            Proto::Metric.new(
               label: labels,
-              histogram: Io::Prometheus::Client::Histogram.new(
+              histogram: Proto::Histogram.new(
                 sample_count: nv.count,
                 sample_sum: nv.sum,
                 schema: nv.schema,
@@ -134,7 +111,7 @@ module Fast
               if gap == 1
                 span_length += 1
               else
-                spans << Io::Prometheus::Client::BucketSpan.new(offset: span_offset, length: span_length)
+                spans << Proto::BucketSpan.new(offset: span_offset, length: span_length)
                 span_offset = gap - 1
                 span_length = 1
               end
@@ -144,24 +121,8 @@ module Fast
             prev_count = count
           end
 
-          spans << Io::Prometheus::Client::BucketSpan.new(offset: span_offset, length: span_length)
+          spans << Proto::BucketSpan.new(offset: span_offset, length: span_length)
           [spans, deltas]
-        end
-
-        private_class_method def self.frame(encoded)
-          encode_varint(encoded.bytesize) << encoded
-        end
-
-        private_class_method def self.encode_varint(value)
-          buffer = String.new
-          loop do
-            byte = value & 0x7f
-            value >>= 7
-            byte |= 0x80 if value.positive?
-            buffer << byte
-            break if value.zero?
-          end
-          buffer
         end
       end
     end

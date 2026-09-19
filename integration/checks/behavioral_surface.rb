@@ -34,7 +34,7 @@ def decode_delimited_families(body)
 
       shift += 7
     end
-    families << Io::Prometheus::Client::MetricFamily.decode(body[offset, len])
+    families << Fast::Prometheus::Formats::Protobuf::Proto::MetricFamily.decode(body[offset, len])
     offset += len
   end
   families

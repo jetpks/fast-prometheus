@@ -49,7 +49,7 @@ zero IO dependencies. Every other surface — the text and protobuf exposition f
 HTTP middleware, each OTLP exporter — is its own require path that pulls in only the
 dependencies it needs (and requires the core itself, so each is independently requirable).
 A process that only records metrics in memory, or only renders text exposition, never loads
-`async-grpc` or the vendored OTLP protobuf descriptors. See
+`async-grpc` or the OTLP message declarations. See
 [Reference: require paths and dependencies](../reference/require-paths.md) for the full
 table.
 

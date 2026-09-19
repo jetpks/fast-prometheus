@@ -21,7 +21,7 @@ Or add to your `Gemfile`:
 gem "fast-prometheus"
 ```
 
-`require "fast/prometheus"` loads only the core, with no IO dependencies. The
+`require "fast/prometheus"` loads only the core, with no IO dependencies. Protobuf exposition and OTLP export are built on [fast-protowire](https://github.com/jetpks/fast-protowire) rather than `google-protobuf`, so no native protobuf runtime is loaded either. The
 opt-in surfaces and what each pulls in are listed in
 [the require-path reference](docs/reference/require-paths.md).
 
