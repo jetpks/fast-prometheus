@@ -10,7 +10,7 @@ module Fast
         :counter
       end
 
-      def increment(by: 1, labels: {})
+      def increment(by: 1, labels: NO_LABELS)
         raise ArgumentError, "by must be a non-negative numeric" unless by.is_a?(Numeric) && by >= 0
         return if by.zero?
 

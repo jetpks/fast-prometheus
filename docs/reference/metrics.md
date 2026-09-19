@@ -190,7 +190,7 @@ Methods
 
 ## `Snapshot`, `MetricSnapshot`, and series value shapes
 
-Immutable, deep-frozen `Data` types returned by `Registry#collect`. Never constructed by application code directly except via `.of`.
+Immutable, frozen value types returned by `Registry#collect`: `Snapshot` and `MetricSnapshot` are `Data`; the per-series types (`Series` and the value shapes) are `Struct`s frozen where they are built, because `Data.new` costs two extra objects per instance and a scrape builds one per series. Never constructed by application code directly except via `.of`.
 
 | Type | Fields | Notes |
 |---|---|---|

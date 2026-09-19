@@ -10,18 +10,18 @@ module Fast
         :gauge
       end
 
-      def set(value, labels: {})
+      def set(value, labels: NO_LABELS)
         raise ArgumentError, "value must be a numeric" unless value.is_a?(Numeric)
 
         key = resolve(labels)
         store.synchronize { store[key] = value.to_f }
       end
 
-      def set_to_current_time(labels: {})
+      def set_to_current_time(labels: NO_LABELS)
         set(Time.now.to_f, labels: labels)
       end
 
-      def increment(by: 1, labels: {})
+      def increment(by: 1, labels: NO_LABELS)
         raise ArgumentError, "by must be a numeric" unless by.is_a?(Numeric)
         return if by.zero?
 
@@ -29,7 +29,7 @@ module Fast
         store.synchronize { store[key] = (store[key] || 0.0) + by.to_f }
       end
 
-      def decrement(by: 1, labels: {})
+      def decrement(by: 1, labels: NO_LABELS)
         raise ArgumentError, "by must be a numeric" unless by.is_a?(Numeric)
         return if by.zero?
 

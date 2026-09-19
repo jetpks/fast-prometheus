@@ -2,21 +2,27 @@
 
 module Fast
   module Prometheus
-    # Immutable value types for snapshots. Deep-frozen Data types.
+    # Immutable value types for snapshots.
+    #
+    # The per-series types are Structs frozen where they are built, not
+    # Data: Data.new allocates two objects besides the instance, and a
+    # scrape builds one of these per series. The per-registry types are Data.
+    # (sum and count shadow Enumerable's on the Structs, as they would on Data.)
 
-    HistogramValue = Data.define(:sum, :count, :cumulative_buckets)
+    HistogramValue = Struct.new(:sum, :count, :cumulative_buckets) # rubocop:disable Lint/StructNewOverride
 
-    NativeHistogramValue = Data.define(:schema, :zero_threshold, :zero_count, :sum, :count,
-                                       :positive_buckets, :negative_buckets)
+    NativeHistogramValue = Struct.new(:schema, :zero_threshold, :zero_count, :sum, :count, # rubocop:disable Lint/StructNewOverride
+                                      :positive_buckets, :negative_buckets)
 
-    Series = Data.define(:labels, :value)
+    Series = Struct.new(:labels, :value)
 
-    SummaryValue = Data.define(:sum, :count)
+    SummaryValue = Struct.new(:sum, :count) # rubocop:disable Lint/StructNewOverride
 
     MetricSnapshot = Data.define(:name, :docstring, :type, :label_names, :series) do
-      # Build a MetricSnapshot from a live metric. Reads only public readers
-      # and copies all mutable structures. The whole build runs under the
-      # metric's lock so no series is observed mid-mutation and no writer
+      # Build a MetricSnapshot from a live metric. Reads only public readers;
+      # #snapshot_values hands over fresh frozen label hashes and frozen
+      # values, so nothing here is copied again. The whole build runs under
+      # the metric's lock so no series is observed mid-mutation and no writer
       # interleaves between series.
       def self.of(metric)
         metric.synchronize do
@@ -30,10 +36,12 @@ module Fast
         end
       end
 
+      # each_pair, not map: a two-parameter block gets key and value
+      # directly, where map would build a pair Array per series.
       def self.build_series(metric)
-        metric.snapshot_values.map do |labels, value|
-          Series.new(labels: labels.dup.freeze, value: value)
-        end
+        series = []
+        metric.snapshot_values.each_pair { |labels, value| series << Series.new(labels, value).freeze }
+        series
       end
     end
 
