@@ -86,11 +86,11 @@ describe Fast::Prometheus::Histogram do
     it "keys frozen HistogramValues by label set, matching MetricSnapshot.of" do
       h = Fast::Prometheus::Histogram.new(:t, docstring: "t", buckets: [1], labels: [:path])
       h.observe(0.5, labels: { path: "/health" })
-      value = h.snapshot_values[{ path: "/health" }]
+      value = h.snapshot_values[["/health"]]
       expect(value).to be_a(Fast::Prometheus::HistogramValue)
       expect(value.sum).to be(:==, 0.5)
       expect(value.count).to be(:==, 1)
-      expect(value).to be(:==, Fast::Prometheus::MetricSnapshot.of(h).series.first.value)
+      expect(value).to be(:==, Fast::Prometheus::MetricSnapshot.of(h).series.values.first)
     end
   end
 

@@ -3,8 +3,7 @@ AllCops:
   NewCops: disable
   SuggestExtensions: false
   Exclude:
-    - lib/fast/prometheus/formats/metrics_pb.rb
-    - lib/fast/prometheus/otlp/pb/**/*
+    - fixtures/pb/**/*
     - vendor/**/*
 Layout/LineLength:
   Max: 120

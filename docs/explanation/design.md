@@ -49,7 +49,7 @@ zero IO dependencies. Every other surface — the text and protobuf exposition f
 HTTP middleware, each OTLP exporter — is its own require path that pulls in only the
 dependencies it needs (and requires the core itself, so each is independently requirable).
 A process that only records metrics in memory, or only renders text exposition, never loads
-`async-grpc` or the vendored OTLP protobuf descriptors. See
+`async-grpc` or the OTLP message declarations. See
 [Reference: require paths and dependencies](../reference/require-paths.md) for the full
 table.
 
@@ -75,4 +75,30 @@ avoiding effort elsewhere: "it's just not that useful to be zero-lock at this po
 in the ruby ecosystem." A `Registry` shared across every OS thread of a Falcon
 `--threaded --count N` process, and across every fiber within each thread, must be correct
 without the caller adding their own locking — see [Concurrency model](concurrency.md) for
-the guarantees this buys and [Benchmarks](benchmarks.md) for what the locking costs.
+the guarantees this buys and [Benchmarks](benchmarks.md) for what it costs.
+
+## Scrapes that cost bytes, not objects
+
+A scrape of a large registry is the one operation here whose cost grows with the number
+of series, and the choice was to let it cost what the bytes cost and little more. Three
+things follow from that.
+
+Protobuf exposition and the OTLP messages are declared with
+[fast-protowire](https://github.com/jetpks/fast-protowire) rather than `google-protobuf`.
+`google-protobuf` gives every message a native arena and a Ruby wrapper in a process-wide
+object cache, which is the right trade for long-lived messages that are read, mutated and
+reflected on, and the wrong one for half a million built once, encoded and dropped on every
+scrape; the garbage collector ends up spending longer on them than the encoder did.
+
+The renderers write from the snapshot straight to the output. The text renderer appends
+names, labels and values into the body without building a line or a label as its own
+String, so a render allocates one String per sample (the value's `to_s`). The protobuf
+renderer writes each series' wire bytes with `Fast::Protowire::Wire` into one buffer
+reused for the whole render, sizes computed rather than encoded twice, so a render of any
+size is a few dozen objects: the family headers and that buffer.
+
+And the snapshot a render reads is each metric's store copied under its lock, not a
+per-series object graph: one Hash per metric however many series or labels. See
+[Concurrency model](concurrency.md) for why the copy exists and
+[Benchmarks](benchmarks.md) for what all of this costs next to `google-protobuf` and
+`prometheus-client`.

@@ -6,15 +6,15 @@
 |---|---|
 | `fast/prometheus` | core only — no IO deps |
 | `fast/prometheus/formats/text` | core |
-| `fast/prometheus/formats/protobuf` | core, google-protobuf |
+| `fast/prometheus/formats/protobuf` | core, fast-protowire |
 | `fast/prometheus/middleware/exporter` | core, protocol-http, both formats |
 | `fast/prometheus/middleware/instrumentation` | core, protocol-http |
 | `fast/prometheus/rack/exporter` | core, both formats, zlib |
 | `fast/prometheus/rack/instrumentation` | core |
-| `fast/prometheus/otlp/mapper` | core, vendored OTLP protos |
+| `fast/prometheus/otlp/mapper` | core, fast-protowire |
 | `fast/prometheus/otlp/http_exporter` | core, async-http |
 | `fast/prometheus/otlp/grpc_exporter` | core, async-http, async-grpc |
 | `fast/prometheus/otlp/push` | core, async, console |
 | `fast/prometheus/otlp/service_interface` | core, protocol-grpc |
 
-The vendored `Opentelemetry::Proto` descriptors under `fast/prometheus/otlp/pb` may conflict with the `opentelemetry-proto` gem if both are loaded in the same process (duplicate protobuf descriptor registration). This only affects processes that opt into OTLP export (`fast/prometheus/otlp/mapper` and anything that requires it).
+Neither exposition nor OTLP export loads `google-protobuf`. The Prometheus client model and the OTLP messages are declared with [fast-protowire](https://github.com/jetpks/fast-protowire) under `Fast::Prometheus::Formats::Protobuf::Proto` and `Fast::Prometheus::OTLP::Proto`, so nothing registers protobuf descriptors and there is no conflict with the `opentelemetry-proto` gem or any other descriptor pool in the process.

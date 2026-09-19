@@ -25,14 +25,14 @@ module Fast
           @negative = {}
         end
 
-        # Sorted array of [index, count] pairs for positive side.
+        # Sorted frozen [index, count] pairs for the positive side.
         def positive_buckets
-          @positive.sort
+          @positive.sort.each(&:freeze).freeze
         end
 
-        # Sorted array of [index, count] pairs for negative side.
+        # Sorted frozen [index, count] pairs for the negative side.
         def negative_buckets
-          @negative.sort
+          @negative.sort.each(&:freeze).freeze
         end
       end
 
@@ -64,7 +64,7 @@ module Fast
       end
 
       # Record an observation. Never raises — NaN/±Inf are handled gracefully.
-      def observe(value, labels: {})
+      def observe(value, labels: NO_LABELS)
         v = value.to_f
         key = resolve(labels)
 
@@ -109,7 +109,7 @@ module Fast
 
       # A frozen NativeHistogramValue for a label set; zero-valued at this
       # metric's schema/zero_threshold for an unobserved series.
-      def get(labels: {})
+      def get(labels: NO_LABELS)
         key = resolve(labels)
         store.synchronize { snapshot_value(store[key] || zero_value) }
       end
@@ -131,15 +131,8 @@ module Fast
       end
 
       def snapshot_value(slot)
-        NativeHistogramValue.new(
-          schema: slot.schema,
-          zero_threshold: slot.zero_threshold,
-          zero_count: slot.zero_count,
-          sum: slot.sum,
-          count: slot.count,
-          positive_buckets: slot.positive_buckets.map { |pair| pair.dup.freeze }.freeze,
-          negative_buckets: slot.negative_buckets.map { |pair| pair.dup.freeze }.freeze
-        ).freeze
+        NativeHistogramValue.new(slot.schema, slot.zero_threshold, slot.zero_count, slot.sum, slot.count,
+                                 slot.positive_buckets, slot.negative_buckets).freeze
       end
 
       def index_for(value, schema)

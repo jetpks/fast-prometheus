@@ -21,7 +21,7 @@ Or add to your `Gemfile`:
 gem "fast-prometheus"
 ```
 
-`require "fast/prometheus"` loads only the core, with no IO dependencies. The
+`require "fast/prometheus"` loads only the core, with no IO dependencies. Protobuf exposition and OTLP export are built on [fast-protowire](https://github.com/jetpks/fast-protowire) rather than `google-protobuf`, so no native protobuf runtime is loaded either. The
 opt-in surfaces and what each pulls in are listed in
 [the require-path reference](docs/reference/require-paths.md).
 
@@ -76,7 +76,7 @@ under Falcon and scraping it with a real Prometheus, see
 - [Concurrency model](docs/explanation/concurrency.md) — the locking contract and what it guarantees under threads and fibers.
 - [Native histograms](docs/explanation/native-histograms.md) — what a native histogram is and why it's protobuf-only.
 - [Design: why a new gem](docs/explanation/design.md) — why fast-prometheus exists instead of a `client_ruby` fork.
-- [Benchmarks](docs/explanation/benchmarks.md) — the full benchmark-ips run and how to reproduce it.
+- [Benchmarks](docs/explanation/benchmarks.md) — scrape and observe benchmarks against prometheus-client and google-protobuf, and how to reproduce them.
 
 ## Concurrency
 
@@ -90,13 +90,18 @@ handled it; aggregating across processes is out of scope. See
 
 ## Performance
 
-Single process, locked, thread-safe by default (`benchmark-ips` comparisons
-against `prometheus-client`; see [the benchmarks page](docs/explanation/benchmarks.md) for the
-full run and conditions):
+Single process, locked, thread-safe by default (`benchmark-ips` and allocation
+comparisons against `prometheus-client` and `google-protobuf`; see
+[the benchmarks page](docs/explanation/benchmarks.md) for the full runs and conditions):
 
-- Bound counter (fast) is on par with prometheus-client's bound counter (1.04x)
-- Classic histogram observe is **3.0x** faster (1.71M vs 566K i/s)
-- Native histogram observe runs at **1.35M i/s** with no prometheus-client equivalent
+- A protobuf scrape of 36,000 series renders in **29 objects**, where the
+  `google-protobuf` encoder needed 3.5 million Ruby objects and 504k native arenas, and
+  in a hundredth of the GC time; taking the snapshot it reads is 1 ms and one Hash per metric
+- The text renderer allocates **66x fewer objects** than prometheus-client's formatter
+  for the same body, and renders it 3.2x faster at 36,000 series
+- Bound counter and gauge writes allocate nothing and are **1.45x** faster than
+  prometheus-client's; histogram observe is **3.1x** faster and summary observe **3.3x**
+- Native histogram observe runs at **1.32M i/s** with no prometheus-client equivalent
 
 ## Development
 
@@ -104,6 +109,8 @@ full run and conditions):
 bundle exec sus
 bundle exec rubocop
 E2E_REQUIRED=1 ./integration/run
+BENCH_QUICK=1 bundle exec ruby benchmark/observe.rb      # every metric operation vs prometheus-client
+BENCH_QUICK=1 bundle exec ruby benchmark/exposition.rb   # the scrape suite
 ```
 
 See [how to verify a release build](docs/how-to/verify-a-release.md) for the pre-release rule.

@@ -25,15 +25,19 @@ module Fast
           @cells = [0] * (buckets.size + 1)
         end
 
-        # Cumulative bucket counts, ending with [Float::INFINITY, count].
+        # Cumulative bucket counts as frozen [boundary, count] pairs, ending
+        # with [Float::INFINITY, count]. Frozen on the way out so a snapshot
+        # can hold it as is.
         def cumulative_buckets
           cumulative = 0
-          result = @buckets.each_with_index.map do |boundary, i|
+          result = Array.new(@buckets.size + 1)
+          @buckets.each_index do |i|
             cumulative += @cells[i]
-            [boundary, cumulative]
+            result[i] = [@buckets[i], cumulative].freeze
           end
           cumulative += @cells.last # overflow cell
-          result << [Float::INFINITY, cumulative]
+          result[@buckets.size] = [Float::INFINITY, cumulative].freeze
+          result.freeze
         end
       end
 
@@ -56,7 +60,7 @@ module Fast
 
       # Record an observation. Finds the first boundary >= value (inclusive le)
       # using bsearch_index. Values above the last boundary go to the overflow cell.
-      def observe(value, labels: {})
+      def observe(value, labels: NO_LABELS)
         key = resolve(labels)
         index = @buckets.bsearch_index { |boundary| boundary >= value } || @buckets.size
 
@@ -71,7 +75,7 @@ module Fast
 
       # Cumulative bucket counts for a specific series, ending with
       # [Float::INFINITY, count]. Zero-valued pairs for an unobserved series.
-      def cumulative_buckets(labels: {})
+      def cumulative_buckets(labels: NO_LABELS)
         key = resolve(labels)
         store.synchronize { slot_or_zero(key).cumulative_buckets }
       end
@@ -79,7 +83,7 @@ module Fast
       # Prometheus-client-shaped Hash: each bucket boundary's to_s => cumulative
       # count, then "+Inf" => cumulative count, then "sum" => Float sum. A
       # fresh Hash per call; zero-valued for an unobserved series.
-      def get(labels: {})
+      def get(labels: NO_LABELS)
         key = resolve(labels)
         store.synchronize { hash_shape(slot_or_zero(key)) }
       end
@@ -89,13 +93,13 @@ module Fast
       end
 
       # Reader for sum of a specific series; 0.0 when unobserved.
-      def sum(labels: {})
+      def sum(labels: NO_LABELS)
         key = resolve(labels)
         store.synchronize { slot_or_zero(key).sum }
       end
 
       # Reader for count of a specific series; 0 when unobserved.
-      def count(labels: {})
+      def count(labels: NO_LABELS)
         key = resolve(labels)
         store.synchronize { slot_or_zero(key).count }
       end
@@ -129,11 +133,7 @@ module Fast
       end
 
       def snapshot_value(slot)
-        HistogramValue.new(
-          sum: slot.sum,
-          count: slot.count,
-          cumulative_buckets: slot.cumulative_buckets.map { |pair| pair.dup.freeze }.freeze
-        )
+        HistogramValue.new(slot.sum, slot.count, slot.cumulative_buckets).freeze
       end
 
       def hash_shape(slot)

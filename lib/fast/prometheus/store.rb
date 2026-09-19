@@ -17,8 +17,10 @@ module Fast
         @monitor = Monitor.new
       end
 
-      def synchronize(&block)
-        @monitor.synchronize(&block)
+      # Written with yield rather than a captured &block, so taking the lock
+      # allocates nothing.
+      def synchronize
+        @monitor.synchronize { yield } # rubocop:disable Style/ExplicitBlockArgument
       end
 
       def [](key)

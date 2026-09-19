@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "fast/prometheus"
+require "reference"
 require "fast/prometheus/formats/protobuf"
 
 describe Fast::Prometheus::Formats::Protobuf do
@@ -24,6 +25,59 @@ describe Fast::Prometheus::Formats::Protobuf do
   end
 
   describe ".render" do
+    it "encodes a labeled multi-series family byte-identically to one MetricFamily message" do
+      r = Fast::Prometheus::Registry.new
+      c = r.counter(:jobs_total, docstring: "jobs", labels: %i[queue state])
+      c.increment(by: 2, labels: { queue: "mail", state: "done" })
+      c.increment(labels: { queue: "mail", state: "failed" })
+      c.increment(by: 7, labels: { queue: "sms", state: "done" })
+
+      frame = split_frames(Fast::Prometheus::Formats::Protobuf.render(r.collect)).first
+      reference = Io::Prometheus::Client::MetricFamily.new(
+        name: "jobs_total", help: "jobs", type: :COUNTER,
+        metric: [%w[mail done 2], %w[mail failed 1], %w[sms done 7]].map do |queue, state, value|
+          Io::Prometheus::Client::Metric.new(
+            label: [Io::Prometheus::Client::LabelPair.new(name: "queue", value: queue),
+                    Io::Prometheus::Client::LabelPair.new(name: "state", value: state)],
+            counter: Io::Prometheus::Client::Counter.new(value: value.to_f)
+          )
+        end
+      )
+
+      expect(frame).to be(:==, Io::Prometheus::Client::MetricFamily.encode(reference))
+    end
+
+    it "omits proto3 zero values and sends -0.0, like the reference" do
+      r = Fast::Prometheus::Registry.new
+      c = r.counter(:zero_total, docstring: "zero", labels: [:kind])
+      c.init_label_set(kind: "unseen")
+      r.gauge(:signed_zero, docstring: "signed").set(-0.0)
+      r.summary(:empty_summary, docstring: "empty")
+      h = r.histogram(:from_zero, docstring: "from zero", buckets: [0.0, 1.0])
+      h.observe(0.0)
+
+      frames = split_frames(Fast::Prometheus::Formats::Protobuf.render(r.collect))
+      c = Io::Prometheus::Client
+      references = [
+        c::MetricFamily.new(name: "zero_total", help: "zero", type: :COUNTER,
+                            metric: [c::Metric.new(label: [c::LabelPair.new(name: "kind", value: "unseen")],
+                                                   counter: c::Counter.new)]),
+        c::MetricFamily.new(name: "signed_zero", help: "signed", type: :GAUGE,
+                            metric: [c::Metric.new(gauge: c::Gauge.new(value: -0.0))]),
+        c::MetricFamily.new(name: "empty_summary", help: "empty", type: :SUMMARY,
+                            metric: [c::Metric.new(summary: c::Summary.new)]),
+        c::MetricFamily.new(name: "from_zero", help: "from zero", type: :HISTOGRAM,
+                            metric: [c::Metric.new(histogram: c::Histogram.new(
+                              sample_count: 1, sample_sum: 0.0,
+                              bucket: [c::Bucket.new(cumulative_count: 1, upper_bound: 0.0),
+                                       c::Bucket.new(cumulative_count: 1, upper_bound: 1.0),
+                                       c::Bucket.new(cumulative_count: 1, upper_bound: Float::INFINITY)]
+                            ))])
+      ]
+
+      expect(frames).to be(:==, references.map { |mf| c::MetricFamily.encode(mf) })
+    end
+
     it "round-trips all five metric types" do
       r = Fast::Prometheus::Registry.new
       r.counter(:requests_total, docstring: "total requests").increment
@@ -132,7 +186,7 @@ describe Fast::Prometheus::Formats::Protobuf do
       )
       metric = Fast::Prometheus::MetricSnapshot.new(
         name: :h, docstring: "h", type: :native_histogram, label_names: [],
-        series: [Fast::Prometheus::Series.new(labels: {}, value: value)]
+        series: { [] => value }
       )
       snapshot = Fast::Prometheus::Snapshot.new(metrics: [metric], taken_at: Time.now)
       frames = split_frames(Fast::Prometheus::Formats::Protobuf.render(snapshot))

@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "fast/prometheus"
+require "reference"
 require "fast/prometheus/otlp/grpc_exporter"
 require "fast/prometheus/otlp/service_interface"
 require "async/grpc/dispatcher"
@@ -19,7 +20,7 @@ describe Fast::Prometheus::OTLP::GRPCExporter do
       define_method(:export) do |input, output, _call|
         request = input.read
         captured << request
-        output.write(Opentelemetry::Proto::Collector::Metrics::V1::ExportMetricsServiceResponse.new)
+        output.write(Fast::Prometheus::OTLP::Proto::ExportMetricsServiceResponse.new)
       end
     end.new(
       Fast::Prometheus::OTLP::MetricsServiceInterface,

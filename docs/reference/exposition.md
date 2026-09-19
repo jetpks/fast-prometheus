@@ -12,7 +12,7 @@ Methods
 
 ## `Formats::Protobuf`
 
-Renders a `Snapshot` as delimited Prometheus protobuf exposition (`io.prometheus.client.MetricFamily`).
+Renders a `Snapshot` as delimited Prometheus protobuf exposition (`io.prometheus.client.MetricFamily`). Each series' bytes are written straight from the snapshot with `Fast::Protowire::Wire`, no message objects; the output is byte-identical to encoding the declared `Formats::Protobuf::Proto` classes (and to `google-protobuf`, which the tests decode it with).
 
 Methods
 

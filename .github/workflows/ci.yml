@@ -14,8 +14,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # The floor (required_ruby_version) and the dev version (mise.toml).
-        ruby: ["3.3", "4.0.5"]
+        # Every supported minor, from the floor (required_ruby_version) to the
+        # dev version (mise.toml); mise resolves each to its latest patch.
+        ruby: ["3.3", "3.4", "4.0"]
     env:
       BUNDLE_PATH: vendor/bundle
       MISE_RUBY_VERSION: ${{ matrix.ruby }}

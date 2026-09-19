@@ -29,8 +29,7 @@ describe "Fast::Prometheus thread safety" do
       until done
         snapshot = registry.collect
         snapshot.metrics.each do |metric_snapshot|
-          metric_snapshot.series.each do |series|
-            value = series.value
+          metric_snapshot.series.each_value do |value|
             case metric_snapshot.type
             when :histogram
               torn << "histogram" if value.cumulative_buckets.last.last != value.count

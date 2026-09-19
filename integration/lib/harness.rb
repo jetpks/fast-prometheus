@@ -7,8 +7,10 @@ require "rbconfig"
 
 module Integration
   # Builds/installs a fast-prometheus gem artifact into an isolated GEM_HOME,
-  # then runs each check script in its own child ruby process against that
-  # install. Never puts the checkout's lib/ on any child's load path.
+  # with every dependency (fast-protowire included) resolved from rubygems as
+  # a user's install would, then runs each check script in its own child
+  # ruby process against that install. Never puts the checkout's lib/ on any
+  # child's load path.
   class Harness
     REPO_ROOT = File.expand_path("../..", __dir__)
     CHECKS_DIR = File.expand_path("../checks", __dir__)

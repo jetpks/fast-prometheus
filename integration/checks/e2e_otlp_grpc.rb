@@ -23,7 +23,7 @@ begin
   test_service = Class.new(Async::GRPC::Service) do
     define_method(:export) do |input, output, _call|
       captured_requests << input.read
-      output.write(Opentelemetry::Proto::Collector::Metrics::V1::ExportMetricsServiceResponse.new)
+      output.write(Fast::Prometheus::OTLP::Proto::ExportMetricsServiceResponse.new)
     end
   end.new(
     Fast::Prometheus::OTLP::MetricsServiceInterface,

@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "fast/prometheus"
+require "reference"
 require "fast/prometheus/rack/exporter"
 require "rack/lint"
 require "rack/mock_request"

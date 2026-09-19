@@ -1,12 +1,12 @@
 PATH
   remote: ../..
   specs:
-    fast-prometheus (0.2.0)
+    fast-prometheus (0.3.0)
       async (>= 2.38)
       async-grpc (~> 0.7)
       async-http (~> 0.95)
       console (~> 1.37)
-      google-protobuf (~> 4.35)
+      fast-protowire (~> 0.1)
       protocol-http (~> 0.60)
 
 GEM
@@ -64,6 +64,7 @@ GEM
       protocol-http (~> 0.31)
       protocol-rack (~> 0.7)
       samovar (~> 2.3)
+    fast-protowire (0.1.0)
     fiber-annotation (0.2.0)
     fiber-local (1.1.0)
       fiber-storage
@@ -160,7 +161,8 @@ CHECKSUMS
   bundler (4.0.20) sha256=7978a8ac648767f5e635bc522445b79e80a52b907a39a36c2d8085ed6bc762ae
   console (1.37.0) sha256=8093b286c2595a063849c098594fee5155ecc7967d36f3aa8cbe7569c8f3efd7
   falcon (0.55.5) sha256=8622db11361b6678578dd7e06b953aaef10e5006929ced618069bb62b0ff118d
-  fast-prometheus (0.2.0)
+  fast-prometheus (0.3.0)
+  fast-protowire (0.1.0) sha256=2e267c713209878a2318a3c5d0da3f994b74b0079ed0e24ff9c92910ba4cc862
   fiber-annotation (0.2.0) sha256=7abfadf1d119f508867d4103bf231c0354d019cc39a5738945dec2edadaf6c03
   fiber-local (1.1.0) sha256=c885f94f210fb9b05737de65d511136ea602e00c5105953748aa0f8793489f06
   fiber-storage (1.0.1) sha256=f48e5b6d8b0be96dac486332b55cee82240057065dc761c1ea692b2e719240e1

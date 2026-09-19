@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "fast/prometheus"
+require "reference"
 require "fast/prometheus/otlp/http_exporter"
 require "async/http/server"
 require "sus/fixtures/async"

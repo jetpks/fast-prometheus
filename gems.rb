@@ -11,6 +11,8 @@ group :test do
   gem "covered"
   gem "rubocop"
   gem "rack", "~> 3.1"
+  # Reference decoder for the exposition and OTLP tests (fixtures/pb); never a runtime dependency.
+  gem "google-protobuf", "~> 4.36"
 end
 
 group :benchmark do

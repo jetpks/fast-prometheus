@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "fast/prometheus"
+require "reference"
 require "fast/prometheus/middleware/exporter"
 require "sus/fixtures/async/http/server_context"
 require "zlib"

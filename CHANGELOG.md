@@ -7,6 +7,62 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-18
+
+### Changed
+
+- Protobuf exposition and OTLP export no longer use `google-protobuf`. The
+  Prometheus client model and the OTLP messages are declared with
+  [fast-protowire](https://github.com/jetpks/fast-protowire), a wire-format
+  library with no native extension: no per-message arenas, no object cache,
+  no descriptor pool. Output is byte-identical (tests decode it with
+  google-protobuf as a development dependency). `Formats::Protobuf.render`
+  encodes each series on its own and appends it to the family's bytes, so a
+  36k-series scrape peaks at roughly the body size instead of ~320 MiB.
+- `OTLP::Mapper#request` returns a `Fast::Prometheus::OTLP::Proto::
+  ExportMetricsServiceRequest`; the gRPC interface's response class is
+  `Fast::Prometheus::OTLP::Proto::ExportMetricsServiceResponse`.
+- New `script/scrape_rss.rb`: an RSS-per-scrape harness for the exposition
+  path (forked server scraped over keep-alive, or in-process loops).
+- `Formats::Text.render` and `Formats::Protobuf.render` allocate per sample
+  and per series, not per label: text appends every piece straight into the
+  output (one String per sample line, the value), and protobuf writes each
+  series' bytes with `Fast::Protowire::Wire` into one reused scratch buffer,
+  with no message objects. Over 5,200 series x 12 labels a text render went
+  from 100,840 to 10,631 objects and a protobuf render from 342,705 to 6,165
+  (0.114 s to 0.030 s); in the 36k-series server harness, protobuf+gzip
+  scrapes went from 0.92 s to 0.25 s and text from 0.20 s to 0.08 s.
+- `MetricSnapshot#series` is the metric's store copied under its lock: a
+  frozen `Hash` from each series' label values (an `Array` in `label_names`
+  order) to its value, with `MetricSnapshot#labels(values)` for the
+  `{name => value}` view. The `Series` object and its per-series label Hash
+  are gone, and with them the snapshot's per-series cost: `Registry#collect`
+  over 36,000 series x 12 labels went from 34 ms, 72,056 objects and 19 MiB
+  to 1 ms, 342 objects and the 2 MiB copy. `Metric#snapshot_values` is keyed
+  the same way; `Metric#values` keeps its label-Hash keys. `HistogramValue`,
+  `SummaryValue` and `NativeHistogramValue` are frozen `Struct`s rather than
+  `Data`, since `Data.new` allocates two objects besides the instance;
+  `Histogram#cumulative_buckets` and the native histogram bucket readers
+  return frozen pairs.
+- A bound or unlabeled `increment`/`observe`/`set` allocates nothing (the
+  `labels: {}` default is one shared frozen Hash and the store lock is taken
+  with `yield`, not a captured block); a labeled call allocates only its
+  resolved key. `test/fast/prometheus/allocations.rb` freezes these budgets.
+- `fast-protowire` is resolved from rubygems.org (`~> 0.1`); the
+  sibling-path override is gone from `gems.rb`. Development and the
+  published benchmarks are on Ruby 4.0.7 (`mise.toml`, CI's dev row).
+
+### Added
+
+- `benchmark/exposition.rb`, a scrape benchmark suite: end-to-end scrapes
+  through `Middleware::Exporter` over `Async::HTTP` in every content variant,
+  each stage of a scrape on its own (collect, render, gzip) with objects and
+  malloc bytes, the renderers against `prometheus-client`'s text formatter
+  from 1k to 100k series, and the protobuf renderer against the two
+  google-protobuf encoders this gem used to ship with live native arenas and
+  GC time. `benchmark/observe.rb` reports every metric operation against
+  `prometheus-client` as one table: i/s, speedup and objects per call.
+
 ## [0.2.0] - 2026-09-15
 
 ### Added

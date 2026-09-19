@@ -14,9 +14,10 @@ and `promtool` on `PATH` to exercise the harness's E2E checks in full.
    ./integration/run
    ```
 
-   This builds `fast-prometheus.gemspec`, installs it into an isolated `GEM_HOME`, and runs
-   every check against that install only — the checkout's `lib/` is never on the child
-   processes' load path.
+   This builds `fast-prometheus.gemspec`, installs it into an isolated `GEM_HOME` with every
+   dependency (`fast-protowire` included) resolved from rubygems.org as a user's install
+   would, and runs every check against that install only — the checkout's `lib/` is never
+   on the child processes' load path.
 
 2. To verify a specific artifact instead (e.g. a `.gem` downloaded from a release asset),
    pass its path:

@@ -15,6 +15,9 @@ module Fast
       METRIC_NAME = /\A[a-zA-Z_:][a-zA-Z0-9_:]*\z/
       LABEL_NAME = /\A[a-zA-Z_][a-zA-Z0-9_]*\z/
 
+      # The default label set, shared so an unlabeled call allocates nothing.
+      NO_LABELS = {}.freeze
+
       def initialize(name, docstring:, labels: [], preset_labels: {}, store: nil)
         validate_metric_name(name)
         validate_docstring(docstring)
@@ -38,7 +41,7 @@ module Fast
       # Returns the current value for the given label set. Scalar types
       # (Counter, Gauge) return 0.0 for unobserved series. Histogram, Summary,
       # and NativeHistogram override this with their own zero-valued shapes.
-      def get(labels: {})
+      def get(labels: NO_LABELS)
         key = resolve(labels)
         store.synchronize { store[key] || 0.0 }
       end
@@ -46,7 +49,7 @@ module Fast
       # Creates the series for +labels+ at its zero value if absent. Never
       # resets a series that already exists. Raises InvalidLabelSet on an
       # unknown or incomplete label set, same as any mutator.
-      def init_label_set(labels = {})
+      def init_label_set(labels = NO_LABELS)
         seed(resolve(labels))
       end
 
@@ -68,23 +71,25 @@ module Fast
       end
 
       def values
-        snapshot_values
+        series_map { |slot| snapshot_value(slot) }
       end
 
       # Every series' value in its frozen snapshot shape (see HistogramValue,
       # SummaryValue, NativeHistogramValue; Counter/Gauge use the already-
-      # frozen Float), keyed by label hash, built under the store lock. The
-      # seam MetricSnapshot uses to build a consistent view of every series.
+      # frozen Float), keyed by the series' label values in #labels order,
+      # the store's own key. The store is copied and its slots frozen under
+      # the lock, so this is a consistent view of every series at one
+      # instant that costs one Hash. The seam MetricSnapshot uses.
       def snapshot_values
-        series_map { |slot| snapshot_value(slot) }
+        store.synchronize { store.to_h.transform_values! { |slot| snapshot_value(slot) } }
       end
 
-      # Runs +block+ exclusively with respect to every other mutation or read
+      # Runs the block exclusively with respect to every other mutation or read
       # of this metric's store (including on metrics sharing it via
       # #with_labels). Reentrant on the same thread. This is the seam
       # MetricSnapshot uses to build a consistent snapshot of every series.
-      def synchronize(&block)
-        store.synchronize(&block)
+      def synchronize
+        store.synchronize { yield } # rubocop:disable Style/ExplicitBlockArgument
       end
 
       protected
@@ -131,9 +136,21 @@ module Fast
       end
 
       # Shared shape behind #values and #snapshot_values: every series'
-      # storage transformed by +block+, keyed by label hash, under the lock.
-      def series_map(&block)
-        store.synchronize { store.to_h.transform_keys { |key| @labels.zip(key).to_h }.transform_values(&block) }
+      # storage transformed by the block, keyed by a fresh frozen label hash,
+      # under the lock. yield, not &block: a captured block is a Proc
+      # allocation on every call.
+      def series_map
+        store.synchronize do
+          store.to_h.transform_keys { |key| label_hash(key) }.transform_values { |slot| yield slot } # rubocop:disable Style/ExplicitBlockArgument
+        end
+      end
+
+      # {name => value} for a resolved key, built without the per-pair Arrays
+      # Array#zip would make (or the iterator object each_with_index would).
+      def label_hash(key)
+        hash = {}
+        @labels.each_index { |i| hash[@labels[i]] = key[i] }
+        hash.freeze
       end
 
       # Creates the series at +key+ at its zero value if absent. Never resets

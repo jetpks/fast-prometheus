@@ -57,11 +57,11 @@ describe Fast::Prometheus::Summary do
     it "keys frozen SummaryValues by label set, matching MetricSnapshot.of" do
       summary = Fast::Prometheus::Summary.new(:t, docstring: "t", labels: [:method])
       summary.observe(2.0, labels: { method: "get" })
-      value = summary.snapshot_values[{ method: "get" }]
+      value = summary.snapshot_values[["get"]]
       expect(value).to be_a(Fast::Prometheus::SummaryValue)
       expect(value.sum).to be(:==, 2.0)
       expect(value.count).to be(:==, 1)
-      expect(value).to be(:==, Fast::Prometheus::MetricSnapshot.of(summary).series.first.value)
+      expect(value).to be(:==, Fast::Prometheus::MetricSnapshot.of(summary).series.values.first)
     end
   end
 

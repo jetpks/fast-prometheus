@@ -1,17 +1,14 @@
 # frozen_string_literal: true
 
 require "fast/prometheus"
-
-$LOAD_PATH.unshift(File.expand_path("pb", __dir__)) unless $LOAD_PATH.include?(File.expand_path("pb", __dir__))
-
-require "opentelemetry/proto/collector/metrics/v1/metrics_service_pb"
+require_relative "proto"
 
 module Fast
   module Prometheus
     module OTLP
-      # Maps a Snapshot to an ExportMetricsServiceRequest.
+      # Maps a Snapshot to a Proto::ExportMetricsServiceRequest.
       class Mapper
-        CUMULATIVE = Opentelemetry::Proto::Metrics::V1::AggregationTemporality::AGGREGATION_TEMPORALITY_CUMULATIVE
+        CUMULATIVE = :AGGREGATION_TEMPORALITY_CUMULATIVE
         private_constant :CUMULATIVE
 
         def initialize(resource_attributes: {}, start_time: Time.now)
@@ -20,15 +17,15 @@ module Fast
         end
 
         def request(snapshot)
-          Opentelemetry::Proto::Collector::Metrics::V1::ExportMetricsServiceRequest.new(
+          Proto::ExportMetricsServiceRequest.new(
             resource_metrics: [
-              Opentelemetry::Proto::Metrics::V1::ResourceMetrics.new(
-                resource: Opentelemetry::Proto::Resource::V1::Resource.new(
+              Proto::ResourceMetrics.new(
+                resource: Proto::Resource.new(
                   attributes: @resource_attributes
                 ),
                 scope_metrics: [
-                  Opentelemetry::Proto::Metrics::V1::ScopeMetrics.new(
-                    scope: Opentelemetry::Proto::Common::V1::InstrumentationScope.new(
+                  Proto::ScopeMetrics.new(
+                    scope: Proto::InstrumentationScope.new(
                       name: "fast-prometheus",
                       version: Fast::Prometheus::VERSION
                     ),
@@ -45,7 +42,7 @@ module Fast
         def build_metric(metric_snapshot, taken_at)
           time_unix_nano = (taken_at.to_f * 1_000_000_000).to_i
 
-          Opentelemetry::Proto::Metrics::V1::Metric.new(
+          Proto::Metric.new(
             name: metric_snapshot.name.to_s,
             description: metric_snapshot.docstring,
             **build_data(metric_snapshot, time_unix_nano)
@@ -56,9 +53,9 @@ module Fast
           case metric_snapshot.type
           when :counter
             {
-              sum: Opentelemetry::Proto::Metrics::V1::Sum.new(
-                data_points: metric_snapshot.series.map do |series|
-                  number_data_point(series, time_unix_nano)
+              sum: Proto::Sum.new(
+                data_points: data_points(metric_snapshot) do |attributes, value|
+                  number_data_point(attributes, value, time_unix_nano)
                 end,
                 aggregation_temporality: CUMULATIVE,
                 is_monotonic: true
@@ -66,34 +63,34 @@ module Fast
             }
           when :gauge
             {
-              gauge: Opentelemetry::Proto::Metrics::V1::Gauge.new(
-                data_points: metric_snapshot.series.map do |series|
-                  number_data_point(series, time_unix_nano)
+              gauge: Proto::Gauge.new(
+                data_points: data_points(metric_snapshot) do |attributes, value|
+                  number_data_point(attributes, value, time_unix_nano)
                 end
               )
             }
           when :histogram
             {
-              histogram: Opentelemetry::Proto::Metrics::V1::Histogram.new(
-                data_points: metric_snapshot.series.map do |series|
-                  histogram_data_point(series, time_unix_nano)
+              histogram: Proto::Histogram.new(
+                data_points: data_points(metric_snapshot) do |attributes, value|
+                  histogram_data_point(attributes, value, time_unix_nano)
                 end,
                 aggregation_temporality: CUMULATIVE
               )
             }
           when :summary
             {
-              summary: Opentelemetry::Proto::Metrics::V1::Summary.new(
-                data_points: metric_snapshot.series.map do |series|
-                  summary_data_point(series, time_unix_nano)
+              summary: Proto::Summary.new(
+                data_points: data_points(metric_snapshot) do |attributes, value|
+                  summary_data_point(attributes, value, time_unix_nano)
                 end
               )
             }
           when :native_histogram
             {
-              exponential_histogram: Opentelemetry::Proto::Metrics::V1::ExponentialHistogram.new(
-                data_points: metric_snapshot.series.map do |series|
-                  exponential_histogram_data_point(series, time_unix_nano)
+              exponential_histogram: Proto::ExponentialHistogram.new(
+                data_points: data_points(metric_snapshot) do |attributes, value|
+                  exponential_histogram_data_point(attributes, value, time_unix_nano)
                 end,
                 aggregation_temporality: CUMULATIVE
               )
@@ -101,25 +98,30 @@ module Fast
           end
         end
 
-        def number_data_point(series, time_unix_nano)
-          Opentelemetry::Proto::Metrics::V1::NumberDataPoint.new(
-            attributes: build_attributes(series.labels),
+        # One data point per series: the block gets the series' OTLP
+        # attributes and its snapshot value.
+        def data_points(metric_snapshot)
+          metric_snapshot.series.map { |values, value| yield build_attributes(metric_snapshot.labels(values)), value }
+        end
+
+        def number_data_point(attributes, value, time_unix_nano)
+          Proto::NumberDataPoint.new(
+            attributes: attributes,
             start_time_unix_nano: @start_time_unix_nano,
             time_unix_nano: time_unix_nano,
-            as_double: series.value.to_f
+            as_double: value.to_f
           )
         end
 
-        def histogram_data_point(series, time_unix_nano)
-          nv = series.value
-          bounds, counts = non_cumulative_buckets(nv.cumulative_buckets)
+        def histogram_data_point(attributes, value, time_unix_nano)
+          bounds, counts = non_cumulative_buckets(value.cumulative_buckets)
 
-          Opentelemetry::Proto::Metrics::V1::HistogramDataPoint.new(
-            attributes: build_attributes(series.labels),
+          Proto::HistogramDataPoint.new(
+            attributes: attributes,
             start_time_unix_nano: @start_time_unix_nano,
             time_unix_nano: time_unix_nano,
-            count: nv.count,
-            sum: nv.sum,
+            count: value.count,
+            sum: value.sum,
             bucket_counts: counts,
             explicit_bounds: bounds
           )
@@ -142,32 +144,28 @@ module Fast
           [bounds, counts]
         end
 
-        def summary_data_point(series, time_unix_nano)
-          sv = series.value
-
-          Opentelemetry::Proto::Metrics::V1::SummaryDataPoint.new(
-            attributes: build_attributes(series.labels),
+        def summary_data_point(attributes, value, time_unix_nano)
+          Proto::SummaryDataPoint.new(
+            attributes: attributes,
             start_time_unix_nano: @start_time_unix_nano,
             time_unix_nano: time_unix_nano,
-            count: sv.count,
-            sum: sv.sum
+            count: value.count,
+            sum: value.sum
           )
         end
 
-        def exponential_histogram_data_point(series, time_unix_nano)
-          nv = series.value
-
-          Opentelemetry::Proto::Metrics::V1::ExponentialHistogramDataPoint.new(
-            attributes: build_attributes(series.labels),
+        def exponential_histogram_data_point(attributes, value, time_unix_nano)
+          Proto::ExponentialHistogramDataPoint.new(
+            attributes: attributes,
             start_time_unix_nano: @start_time_unix_nano,
             time_unix_nano: time_unix_nano,
-            count: nv.count,
-            sum: nv.sum,
-            scale: nv.schema,
-            zero_count: nv.zero_count,
-            zero_threshold: nv.zero_threshold,
-            positive: dense_buckets(nv.positive_buckets),
-            negative: dense_buckets(nv.negative_buckets)
+            count: value.count,
+            sum: value.sum,
+            scale: value.schema,
+            zero_count: value.zero_count,
+            zero_threshold: value.zero_threshold,
+            positive: dense_buckets(value.positive_buckets),
+            negative: dense_buckets(value.negative_buckets)
           )
         end
 
@@ -175,7 +173,7 @@ module Fast
         # OTLP index = prom index - 1. Offset = min OTLP index.
         # Buckets are always sorted (from NativeHistogram::Slot#positive_buckets / #negative_buckets).
         def dense_buckets(buckets)
-          return Opentelemetry::Proto::Metrics::V1::ExponentialHistogramDataPoint::Buckets.new if buckets.empty?
+          return Proto::ExponentialHistogramDataPoint::Buckets.new if buckets.empty?
 
           first_idx, = buckets.first
           last_idx, = buckets.last
@@ -185,7 +183,7 @@ module Fast
           counts = Array.new(length, 0)
           buckets.each { |prom_idx, count| counts[prom_idx - offset - 1] = count }
 
-          Opentelemetry::Proto::Metrics::V1::ExponentialHistogramDataPoint::Buckets.new(
+          Proto::ExponentialHistogramDataPoint::Buckets.new(
             offset: offset,
             bucket_counts: counts
           )
@@ -196,9 +194,9 @@ module Fast
         end
 
         def kv(key, value)
-          Opentelemetry::Proto::Common::V1::KeyValue.new(
+          Proto::KeyValue.new(
             key: key,
-            value: Opentelemetry::Proto::Common::V1::AnyValue.new(string_value: value)
+            value: Proto::AnyValue.new(string_value: value)
           )
         end
       end

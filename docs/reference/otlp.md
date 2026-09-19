@@ -60,7 +60,7 @@ Methods
 
 ## `OTLP::Mapper`
 
-Maps a `Snapshot` to an `Opentelemetry::Proto::Collector::Metrics::V1::ExportMetricsServiceRequest`. Used internally by both exporters.
+Maps a `Snapshot` to a `Fast::Prometheus::OTLP::Proto::ExportMetricsServiceRequest` (declared with fast-protowire; `encode`/`to_proto` give the bytes). Used internally by both exporters.
 
 Constructor
 
@@ -73,6 +73,6 @@ Methods
 
 | Signature | Returns | Notes |
 |---|---|---|
-| `request(snapshot)` | `Opentelemetry::Proto::Collector::Metrics::V1::ExportMetricsServiceRequest` | `:counter`/`:gauge` map to OTLP `Sum`/`Gauge`; `:histogram` maps to OTLP `Histogram` (cumulative); `:summary` maps to OTLP `Summary`; `:native_histogram` maps to OTLP `ExponentialHistogram`, with `scale: schema` and OTLP bucket offsets equal to `prom_index - 1`. |
+| `request(snapshot)` | `Fast::Prometheus::OTLP::Proto::ExportMetricsServiceRequest` | `:counter`/`:gauge` map to OTLP `Sum`/`Gauge`; `:histogram` maps to OTLP `Histogram` (cumulative); `:summary` maps to OTLP `Summary`; `:native_histogram` maps to OTLP `ExponentialHistogram`, with `scale: schema` and OTLP bucket offsets equal to `prom_index - 1`. |
 
-The vendored `Opentelemetry::Proto` descriptors this module loads (under `fast/prometheus/otlp/pb`) may conflict with the `opentelemetry-proto` gem if both register the same protobuf descriptors in one process; see [Reference: require paths and dependencies](require-paths.md).
+No protobuf descriptors are registered by this module; see [Reference: require paths and dependencies](require-paths.md).

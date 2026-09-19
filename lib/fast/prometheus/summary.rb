@@ -21,7 +21,7 @@ module Fast
         :summary
       end
 
-      def observe(value, labels: {})
+      def observe(value, labels: NO_LABELS)
         key = resolve(labels)
         store.synchronize do
           slot = store[key] ||= Value.new
@@ -31,7 +31,7 @@ module Fast
       end
 
       # {"count" => Integer, "sum" => Float}. Zero-valued for an unobserved series.
-      def get(labels: {})
+      def get(labels: NO_LABELS)
         key = resolve(labels)
         store.synchronize { hash_shape(store[key] || zero_value) }
       end
@@ -58,7 +58,7 @@ module Fast
       end
 
       def snapshot_value(slot)
-        SummaryValue.new(sum: slot.sum, count: slot.count)
+        SummaryValue.new(slot.sum, slot.count).freeze
       end
 
       def hash_shape(slot)

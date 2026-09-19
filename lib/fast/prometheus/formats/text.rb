@@ -7,6 +7,10 @@ module Fast
     module Formats
       # Prometheus text exposition format 0.0.4.
       # Consumes Snapshot value objects; never reads live metrics.
+      #
+      # Every piece is appended straight to the output buffer: no line, label
+      # or name is built as its own String first, so a render allocates one
+      # String per sample (the value's to_s) and nothing per label.
       module Text
         CONTENT_TYPE = "text/plain; version=0.0.4; charset=utf-8"
 
@@ -20,24 +24,62 @@ module Fast
           snapshot.metrics.each_with_object(String.new) do |metric, output|
             next if metric.type == :native_histogram
 
-            output << "# HELP #{metric.name} #{escape_doc(metric.docstring)}\n"
-            output << "# TYPE #{metric.name} #{metric.type}\n"
+            name = metric.name.name
+            output << "# HELP " << name << " " << escape_doc(metric.docstring) << "\n"
+            output << "# TYPE " << name << " " << metric.type.name << "\n"
 
-            metric.series.each do |series|
-              render_series(output, metric.type, metric.name, series)
+            names = metric.label_names
+            metric.series.each_pair do |values, value|
+              render_series(output, metric.type, name, names, values, value)
             end
           end
         end
 
-        private_class_method def self.render_series(output, type, name, series)
+        private_class_method def self.render_series(output, type, name, names, values, value)
           case type
           when :counter, :gauge
-            metric_line(output, name, series.labels, series.value)
+            sample(output, name, nil, names, values, value)
           when :histogram
-            histogram_lines(output, name, series.labels, series.value)
+            histogram_lines(output, name, names, values, value)
           when :summary
-            summary_lines(output, name, series.labels, series.value)
+            sample(output, name, "_sum", names, values, value.sum)
+            sample(output, name, "_count", names, values, value.count)
           end
+        end
+
+        # One sample line: name, optional suffix, labels (names and values
+        # side by side, plus an le label carrying +upper_bound+ for histogram
+        # buckets), value.
+        private_class_method def self.sample(output, name, suffix, names, values, value, upper_bound = nil)
+          output << name
+          output << suffix if suffix
+          append_labels(output, names, values, upper_bound)
+          output << " " << value.to_s << "\n"
+        end
+
+        private_class_method def self.append_labels(output, names, values, upper_bound)
+          return if names.empty? && upper_bound.nil?
+
+          output << "{"
+          names.each_index { |i| output << label_name(names[i]) << "=\"" << escape_label(values[i]) << "\"," }
+          output << "le=\"" << upper_bound << "\"," if upper_bound
+          output.chop!
+          output << "}"
+        end
+
+        private_class_method def self.histogram_lines(output, name, names, values, value)
+          value.cumulative_buckets.each do |boundary, count|
+            sample(output, name, "_bucket", names, values, count, boundary.infinite? ? "+Inf" : boundary.to_s)
+          end
+
+          sample(output, name, "_sum", names, values, value.sum)
+          sample(output, name, "_count", names, values, value.count)
+        end
+
+        # Label names are Symbols (Symbol#name is frozen and shared); a
+        # String name is appended as is.
+        private_class_method def self.label_name(key)
+          key.is_a?(Symbol) ? key.name : key
         end
 
         private_class_method def self.escape_doc(string)
@@ -51,38 +93,6 @@ module Fast
           return string unless LABEL_ESCAPE.match?(string)
 
           string.gsub(LABEL_ESCAPE, LABEL_REPLACE)
-        end
-
-        private_class_method def self.format_labels(labels)
-          return "" if labels.empty?
-
-          output = String.new("{")
-          labels.each do |key, value|
-            output << "#{key}=\"#{escape_label(value)}\""
-            output << ","
-          end
-          output.chop!
-          output << "}"
-          output
-        end
-
-        private_class_method def self.metric_line(output, name, labels, value)
-          output << "#{name}#{format_labels(labels)} #{value}\n"
-        end
-
-        private_class_method def self.histogram_lines(output, name, labels, value)
-          value.cumulative_buckets.each do |boundary, count|
-            le = boundary.infinite? ? "+Inf" : boundary.to_s
-            metric_line(output, "#{name}_bucket", labels.merge("le" => le), count)
-          end
-
-          metric_line(output, "#{name}_sum", labels, value.sum)
-          metric_line(output, "#{name}_count", labels, value.count)
-        end
-
-        private_class_method def self.summary_lines(output, name, labels, value)
-          metric_line(output, "#{name}_sum", labels, value.sum)
-          metric_line(output, "#{name}_count", labels, value.count)
         end
       end
     end
