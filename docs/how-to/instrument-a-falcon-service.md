@@ -115,6 +115,10 @@ container models: forked (Falcon's default, one registry per process) and thread
 registry shared by every thread, the shape [Concurrency model](../explanation/concurrency.md)
 is built for).
 
+The `method` label is allowlisted, so a request with a method outside the RFC 9110 set plus
+`PATCH` is counted as `http_server_requests_total{method="_OTHER"}` — Falcon accepts any token
+as a method, and without the allowlist each one would mint a series that nothing reclaims.
+
 See [Reference: exposition formats and HTTP middleware](../reference/exposition.md) for
 `Middleware::Instrumentation` and `Middleware::Exporter`'s full constructor keywords and
 behavior.
