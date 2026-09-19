@@ -15,7 +15,7 @@ jobs:
       fail-fast: false
       matrix:
         # The floor (required_ruby_version) and the dev version (mise.toml).
-        ruby: ["3.3", "4.0.5"]
+        ruby: ["3.3", "4.0.7"]
     env:
       BUNDLE_PATH: vendor/bundle
       MISE_RUBY_VERSION: ${{ matrix.ruby }}

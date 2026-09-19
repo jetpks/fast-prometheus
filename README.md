@@ -98,10 +98,10 @@ comparisons against `prometheus-client` and `google-protobuf`; see
   `google-protobuf` encoder needed 3.5 million Ruby objects and 504k native arenas, and
   in a tenth of the GC time; taking the snapshot it reads is 1 ms and one Hash per metric
 - The text renderer allocates **66x fewer objects** than prometheus-client's formatter
-  for the same body, and renders it 2.8x faster
-- Bound counter increments allocate nothing and are **1.46x** faster than
+  for the same body, and renders it 2.7x faster
+- Bound counter increments allocate nothing and are **1.52x** faster than
   prometheus-client's; classic histogram observe is **3.0x** faster
-- Native histogram observe runs at **1.33M i/s** with no prometheus-client equivalent
+- Native histogram observe runs at **1.26M i/s** with no prometheus-client equivalent
 
 ## Development
 

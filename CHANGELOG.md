@@ -29,7 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   with no message objects. Over 5,200 series x 12 labels a text render went
   from 100,840 to 10,631 objects and a protobuf render from 342,705 to 6,165
   (0.114 s to 0.030 s); in the 36k-series server harness, protobuf+gzip
-  scrapes went from 0.92 s to 0.27 s and text from 0.20 s to 0.11 s.
+  scrapes went from 0.92 s to 0.25 s and text from 0.20 s to 0.08 s.
 - `MetricSnapshot#series` is the metric's store copied under its lock: a
   frozen `Hash` from each series' label values (an `Array` in `label_names`
   order) to its value, with `MetricSnapshot#labels(values)` for the
@@ -47,7 +47,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   with `yield`, not a captured block); a labeled call allocates only its
   resolved key. `test/fast/prometheus/allocations.rb` freezes these budgets.
 - `fast-protowire` is resolved from rubygems.org (`~> 0.1`); the
-  sibling-path override is gone from `gems.rb`.
+  sibling-path override is gone from `gems.rb`. Development and the
+  published benchmarks are on Ruby 4.0.7 (`mise.toml`, CI's dev row).
 
 ### Added
 
