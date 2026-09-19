@@ -49,42 +49,25 @@ metric's store under its lock, 1 ms, 342 objects and 2 MiB, whatever the label c
 
 ## Observing
 
-`benchmark-ips` comparisons against `prometheus-client`, run against the tree at the
-0.3.0 release:
+`benchmark/observe.rb`: every mutation and read a metric offers, against `prometheus-client`'s
+equivalent where it has one. Iterations per second are `benchmark-ips` (2 s per row after
+1 s of warmup); objects per call are `GC.stat`, exact, with the label Hash built once
+outside the loop so the count is the library's, not the caller's literal. "Bound" holds the
+`with_labels` metric for the loop, the way an instrumented hot path does.
 
-```
-Calculating -------------------------------------
-                counter labels (fast)      1.346M (± 2.5%) i/s  (742.72 ns/i) -      2.777M in   2.062677s
-   counter labels (prometheus-client)      1.046M (± 3.3%) i/s  (956.18 ns/i) -      2.110M in   2.017397s
-                 counter bound (fast)      2.705M (± 3.1%) i/s  (369.70 ns/i) -      5.452M in   2.015478s
-    counter bound (prometheus-client)      1.782M (± 3.6%) i/s  (561.15 ns/i) -      3.592M in   2.015506s
-             histogram observe (fast)      1.549M (± 2.9%) i/s  (645.75 ns/i) -      3.122M in   2.016210s
-histogram observe (prometheus-client)    517.494k (± 3.4%) i/s    (1.93 μs/i) -      1.037M in   2.002998s
-      native histogram observe (fast)      1.256M (± 2.7%) i/s  (796.37 ns/i) -      2.571M in   2.047132s
-
-Comparison:
-                 counter bound (fast):  2704887.9 i/s
-    counter bound (prometheus-client):  1782063.7 i/s - 1.52x  slower
-             histogram observe (fast):  1548598.6 i/s - 1.75x  slower
-                counter labels (fast):  1346399.4 i/s - 2.01x  slower
-      native histogram observe (fast):  1255698.2 i/s - 2.15x  slower
-   counter labels (prometheus-client):  1045827.4 i/s - 2.59x  slower
-histogram observe (prometheus-client):   517494.3 i/s - 5.23x  slower
-```
-
-And what each call allocates, in Ruby objects, with the labels Hash built once outside
-the loop so the count is the library's, not the caller's literal:
-
-```
-Allocations per call (objects):
-  counter labels (fast)                    1.0
-  counter labels (prometheus-client)       5.0
-  counter bound (fast)                     0.0
-  counter bound (prometheus-client)        1.0
-  histogram observe (fast)                 1.0
-  histogram observe (prometheus-client)    8.0
-  native histogram observe (fast)          1.0
-```
+| operation | fast-prometheus i/s | prometheus-client i/s | fast / client | fast-prometheus objects/call | prometheus-client objects/call |
+|---|---|---|---|---|---|
+| counter increment, labels | 1.42M | 1.07M | 1.32x | 1.0 | 5.0 |
+| counter increment, bound | 2.58M | 1.78M | 1.45x | 0.0 | 1.0 |
+| counter get, labels | 2.06M | 1.39M | 1.48x | 1.0 | 5.0 |
+| gauge set, labels | 1.93M | 1.35M | 1.43x | 1.0 | 5.0 |
+| gauge set, bound | 4.03M | 2.78M | 1.45x | 0.0 | 1.0 |
+| gauge increment, labels | 1.43M | 1.08M | 1.32x | 1.0 | 5.0 |
+| histogram observe, labels | 1.65M | 0.54M | 3.06x | 1.0 | 8.0 |
+| histogram observe, bound | 2.38M | 0.64M | 3.71x | 0.0 | 5.0 |
+| summary observe, labels | 2.03M | 0.62M | 3.25x | 1.0 | 10.0 |
+| native histogram observe, labels | 1.32M | — | — | 1.0 | — |
+| native histogram observe, bound | 1.75M | — | — | 0.0 | — |
 
 A bound or unlabeled call allocates nothing: the default label set is one shared frozen
 Hash and the store lock is taken with `yield` rather than a captured block. A labeled
@@ -106,7 +89,7 @@ bundle exec ruby benchmark/exposition.rb                 # 36k-series scrape, ~2
   and 504k native arenas; 2.1–2.5x faster, with 62 ms of GC per ten renders against 1.0–1.9 s.
 - The text renderer allocates **66x fewer objects** than `prometheus-client`'s for the
   same body, and renders it 2.7x faster.
-- Bound counter increments are **1.52x** faster than `prometheus-client`'s and allocate
-  nothing; classic histogram observe is **3.0x** faster.
-- Native histogram observe runs at **1.26M i/s** with no `prometheus-client` equivalent.
+- Bound counter and gauge writes are **1.45x** faster than `prometheus-client`'s and allocate
+  nothing; histogram observe is **3.1x** faster and summary observe **3.3x**.
+- Native histogram observe runs at **1.32M i/s** with no `prometheus-client` equivalent.
 
