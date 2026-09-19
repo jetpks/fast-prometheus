@@ -63,6 +63,15 @@ describe Fast::Prometheus::Rack::Exporter do
     end
   end
 
+  describe "GET /metrics with a query string" do
+    it "serves metrics: the query never reaches PATH_INFO" do
+      response = request.get("/metrics?format=prometheus&debug=1")
+
+      expect(response.status).to be(:==, 200)
+      expect(response.body).to be(:include?, "requests_total 5.0")
+    end
+  end
+
   describe "non-metrics path" do
     it "passes through to delegate" do
       response = request.get("/other")

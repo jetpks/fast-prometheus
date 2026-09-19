@@ -53,7 +53,9 @@ Rack app to add the middleware to.
 
 `/metrics` serves the registry's current snapshot (text by default, protobuf when the request
 asks for it), and `http_server_requests_total` / `http_server_request_duration_seconds` grow
-with every request the app serves.
+with every request the app serves. Their `method` label is allowlisted: a request with a method
+outside the RFC 9110 set plus `PATCH` is counted as `method="_OTHER"`, so a client cannot mint
+series by inventing methods.
 
 See [Reference: exposition formats and HTTP middleware](../reference/exposition.md) for
 `Rack::Exporter` and `Rack::Instrumentation`'s full constructor keywords and behavior.
