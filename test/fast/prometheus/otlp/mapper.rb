@@ -26,7 +26,18 @@ describe Fast::Prometheus::OTLP::Mapper do
         req = mapper.request(snapshot)
         dp = req.resource_metrics.first.scope_metrics.first.metrics.first.sum.data_points.first
         expect(dp.as_double).to be(:==, 3.0)
-        expect(dp.start_time_unix_nano).to be(:==, (start_time.to_f * 1_000_000_000).to_i)
+        expect(dp.start_time_unix_nano).to be(:==, (start_time.tv_sec * 1_000_000_000) + start_time.tv_nsec)
+      end
+    end
+
+    describe "label attributes" do
+      before { registry.counter(:hits, docstring: "Hits", labels: [:code]).increment(labels: { code: 200 }) }
+
+      it "sends label values as strings" do
+        req = mapper.request(registry.collect)
+        attr = req.resource_metrics.first.scope_metrics.first.metrics.first.sum.data_points.first.attributes.first
+        expect(attr.key).to be(:==, "code")
+        expect(attr.value.string_value).to be(:==, "200")
       end
     end
 
@@ -123,6 +134,62 @@ describe Fast::Prometheus::OTLP::Mapper do
       end
     end
 
+    describe "native_histogram with non-finite observations" do
+      let(:histogram) { registry.native_histogram(:lat, docstring: "L") }
+      let(:data_point) do
+        req = mapper.request(registry.collect)
+        req.resource_metrics.first.scope_metrics.first.metrics.first.exponential_histogram.data_points.first
+      end
+
+      it "counts and buckets only the finite observations" do
+        histogram.observe(1.5)
+        histogram.observe(Float::INFINITY)
+        histogram.observe(-Float::INFINITY)
+        histogram.observe(Float::NAN)
+        expect(data_point.count).to be(:==, 1)
+        expect(data_point.positive.bucket_counts.to_a).to be(:==, [1])
+        expect(data_point.negative.bucket_counts.to_a).to be(:==, [])
+      end
+
+      it "omits a sum that is no longer finite" do
+        histogram.observe(1.5)
+        histogram.observe(Float::INFINITY)
+        expect(data_point.has_sum?).to be(:==, false)
+      end
+
+      it "drops the clamped bucket after downscaling moved its index" do
+        histogram.observe(Float::INFINITY)
+        200.times { |i| histogram.observe(2.0**i) }
+        expect(data_point.count).to be(:==, 200)
+        expect(data_point.positive.bucket_counts.sum).to be(:==, 200)
+      end
+
+      it "merges far-apart buckets to a coarser scale rather than a huge array" do
+        wide = registry.native_histogram(:wide, docstring: "W", schema: 8)
+        wide.observe(1e-30)
+        wide.observe(1e30)
+        req = mapper.request(registry.collect)
+        dp = req.resource_metrics.first.scope_metrics.first.metrics.first.exponential_histogram.data_points.first
+        expect(dp.scale).to be(:==, 2)
+        expect(dp.positive.bucket_counts.size).to be(:<=, 1024)
+        expect(dp.positive.bucket_counts.sum).to be(:==, 2)
+      end
+    end
+
+    describe "timestamps" do
+      before { registry.counter(:c, docstring: "C").increment }
+
+      it "carries start_time and taken_at as exact nanoseconds" do
+        start = Time.at(1_700_000_000, 123_456_789, :nsec)
+        snapshot = registry.collect
+        req = Fast::Prometheus::OTLP::Mapper.new(start_time: start).request(snapshot)
+        dp = req.resource_metrics.first.scope_metrics.first.metrics.first.sum.data_points.first
+        taken_at = snapshot.taken_at
+        expect(dp.start_time_unix_nano).to be(:==, 1_700_000_000_123_456_789)
+        expect(dp.time_unix_nano).to be(:==, (taken_at.tv_sec * 1_000_000_000) + taken_at.tv_nsec)
+      end
+    end
+
     describe "resource and scope" do
       before { registry.counter(:x, docstring: "X").increment }
       let(:snapshot) { registry.collect }
@@ -143,6 +210,19 @@ describe Fast::Prometheus::OTLP::Mapper do
         attr = req.resource_metrics.first.resource.attributes.first
         expect(attr.key).to be(:==, "service.name")
         expect(attr.value.string_value).to be(:==, "my-app")
+      end
+
+      it "stringifies attribute keys and maps attribute values by type" do
+        mapper_with_attrs = Fast::Prometheus::OTLP::Mapper.new(
+          resource_attributes: { service: "my-app", "instances" => 42, "ratio" => 0.5, "on" => true, "at" => :now }
+        )
+        attrs = mapper_with_attrs.request(snapshot).resource_metrics.first.resource.attributes
+        by_key = attrs.to_h { |attr| [attr.key, attr.value] }
+        expect(by_key["service"].string_value).to be(:==, "my-app")
+        expect(by_key["instances"].int_value).to be(:==, 42)
+        expect(by_key["ratio"].double_value).to be(:==, 0.5)
+        expect(by_key["on"].bool_value).to be(:==, true)
+        expect(by_key["at"].string_value).to be(:==, "now")
       end
     end
 

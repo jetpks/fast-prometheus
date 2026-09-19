@@ -71,6 +71,18 @@ describe Fast::Prometheus::Middleware::Exporter do
     end
   end
 
+  describe "GET /metrics with a query string" do
+    it "serves metrics whatever query follows the path" do
+      ["/metrics?x=1", "/metrics?", "/metrics?format=prometheus&debug=1"].each do |path|
+        response = client.call(Protocol::HTTP::Request["GET", path])
+
+        expect(response.status).to be(:==, 200)
+        expect(response.read).to be(:include?, "requests_total 5.0")
+        response.close
+      end
+    end
+  end
+
   describe "non-metrics path" do
     it "passes through to delegate" do
       request = Protocol::HTTP::Request["GET", "/other"]
@@ -78,6 +90,15 @@ describe Fast::Prometheus::Middleware::Exporter do
 
       expect(response.status).to be(:==, 404)
       response.close
+    end
+
+    it "passes through paths the metrics path is only a prefix of" do
+      ["/metricsx", "/metrics/", "/METRICS", "/other?x=/metrics"].each do |path|
+        response = client.call(Protocol::HTTP::Request["GET", path])
+
+        expect(response.status).to be(:==, 404)
+        response.close
+      end
     end
   end
 

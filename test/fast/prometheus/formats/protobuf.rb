@@ -47,6 +47,29 @@ describe Fast::Prometheus::Formats::Protobuf do
       expect(frame).to be(:==, Io::Prometheus::Client::MetricFamily.encode(reference))
     end
 
+    it "omits an empty label value, like the reference" do
+      r = Fast::Prometheus::Registry.new
+      c = r.counter(:jobs_total, docstring: "jobs", labels: %i[queue state])
+      c.increment(labels: { queue: "", state: "done" })
+      c.increment(by: 2, labels: { queue: "mail", state: "" })
+      c.increment(by: 3, labels: { queue: "", state: "" })
+
+      frame = split_frames(Fast::Prometheus::Formats::Protobuf.render(r.collect)).first
+      reference = Io::Prometheus::Client::MetricFamily.new(
+        name: "jobs_total", help: "jobs", type: :COUNTER,
+        metric: [["", "done", 1], ["mail", "", 2], ["", "", 3]].map do |queue, state, value|
+          Io::Prometheus::Client::Metric.new(
+            label: [Io::Prometheus::Client::LabelPair.new(name: "queue", value: queue),
+                    Io::Prometheus::Client::LabelPair.new(name: "state", value: state)],
+            counter: Io::Prometheus::Client::Counter.new(value: value.to_f)
+          )
+        end
+      )
+
+      expect(frame).to be(:==, Io::Prometheus::Client::MetricFamily.encode(reference))
+      expect(Io::Prometheus::Client::MetricFamily.decode(frame).metric.size).to be(:==, 3)
+    end
+
     it "omits proto3 zero values and sends -0.0, like the reference" do
       r = Fast::Prometheus::Registry.new
       c = r.counter(:zero_total, docstring: "zero", labels: [:kind])

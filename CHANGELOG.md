@@ -7,6 +7,112 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-19
+
+### Changed
+
+- **Breaking:** declared label names are normalized to `Symbol`s at
+  construction. `labels: ["method"]` and `labels: [:method]` now declare the
+  same metric and `Metric#labels` reports `[:method]` for both, so a `String`
+  key at observe time — `increment(labels: { "method" => "GET" })` — is an
+  unknown label and raises `InvalidLabelSet` where it used to resolve. Two
+  names that normalize to the same `Symbol` (`%i[x x]`, `[:x, "x"]`) are a
+  duplicate and raise `InvalidLabelName`, as do the reserved names now that
+  they are checked after normalization: `"le"` on a `Histogram` and
+  `"quantile"` on a `Summary` raise where only `:le` and `:quantile` did. The
+  `labels:` and `buckets:` Arrays are copied and frozen, so mutating the Array
+  you passed no longer reaches into the metric.
+- Label values and docstrings are normalized to valid UTF-8 at the boundary
+  where they enter the store, so no reader, renderer or exporter downstream can
+  meet a mixed or an invalid encoding. An ASCII-only String is kept exactly as
+  it is whatever its encoding tag (`"GET".b` out of a Rack env, `US-ASCII` out
+  of `200.to_s`); invalid UTF-8 is scrubbed; `BINARY` is reinterpreted as UTF-8
+  bytes and scrubbed, never transcoded; any other encoding is transcoded with
+  replacement. A registry holding label values in two encodings no longer fails
+  its scrape with `Encoding::CompatibilityError`, and `Formats::Text.render`
+  builds its body in UTF-8 from the first byte, matching the `charset=utf-8` it
+  advertises. Bytes that are not valid UTF-8 are replaced, not preserved — see
+  Normalization in the metrics reference. The cost is on the labeled write
+  path: about 5–10% fewer iterations per second in `benchmark/observe.rb`
+  against 0.3.2 in a paired run, with bound and unlabeled calls and every
+  allocation budget unchanged.
+- The `method` label on `Middleware::Instrumentation` and
+  `Rack::Instrumentation` is allowlisted to the RFC 9110 methods plus `PATCH`;
+  every other token is counted as `method="_OTHER"`, the value OpenTelemetry's
+  HTTP semantic conventions collapse an unrecognized method to. An HTTP method
+  is any token both `Protocol::HTTP` and Rack accept, and nothing reclaims a
+  series once it exists, so the two RED metrics now hold at most ten `method`
+  values however many a client invents. Matching is case-sensitive, so `get` is
+  `_OTHER`.
+- `Accept` and `Accept-Encoding` are parsed as RFC 9110 lists rather than
+  searched for a substring: the token is matched whole and case-insensitively,
+  `q=0` is a refusal, the higher `q` wins between
+  `application/vnd.google.protobuf` and `text/plain`, and a tie is protobuf.
+  `Accept: text/plain;version=0.0.4` no longer selects protobuf because the
+  word appears in a parameter, and `gzip;q=0` is honoured as the refusal it is.
+  Text remains the fallback for a request accepting neither format.
+- `Middleware::Instrumentation` and `Rack::Instrumentation` validate a metric
+  already registered under either of their names before reusing it: it must
+  declare `labels: %i[method status]` and be a kind `record` can drive — a
+  counter under the counter name, something observable under the duration name.
+  A mismatch raises `InvalidMetricType` (kind) or `InvalidLabelSet` (labels)
+  from the constructor, at boot where the mistaken declaration is, instead of
+  once per request from inside the app's request path.
+- **Breaking:** `OTLP::Mapper.new(start_time:)` takes a `Time`, and both it and
+  `snapshot.taken_at` are carried as exact nanoseconds (`tv_sec`/`tv_nsec`)
+  rather than through a `Float`, which lost the low ~256 ns at epoch
+  magnitudes. A `Float` start time no longer works.
+- OTLP resource attributes keep their Ruby type — `String` to `string_value`,
+  `Integer` to `int_value`, `Float` to `double_value`, `true`/`false` to
+  `bool_value`, anything else its `to_s` — and their keys may be `Symbol`s,
+  which makes the `resource_attributes: { service: "my-app" }` in the
+  export-otlp how-to run as written. Data point label attributes stay
+  `string_value`.
+- `Formats::Protobuf.render` omits a label whose value is the empty String,
+  which is implicit presence for a proto3 `string` and what `google-protobuf`
+  writes: a series carrying an empty label value is now byte-identical to the
+  reference encoder's output instead of a byte longer.
+- `NativeHistogram#observe` raises `ArgumentError` unless its value is
+  `Numeric`, as every other metric type does; `NaN` and `±Infinity` are still
+  accepted and still never raise.
+- `Histogram.new` rejects a non-finite bucket bound with `ArgumentError`. The
+  `+Inf` bucket is implicit and always rendered, so an explicit
+  `Float::INFINITY` (or `Float::NAN`) bound was a silent mistake, not a second
+  `+Inf`.
+- Benchmarks re-taken on this tree against fast-protowire 0.3.0 and
+  republished on the benchmarks page and in the README.
+
+### Fixed
+
+- `OTLP::Mapper` no longer sizes a bucket array by the distance between two
+  observations. A `:native_histogram` series clamps a `±Infinity` observation
+  to bucket index `2**31 - 1`, and OTLP carries one contiguous bucket-count
+  array per side, so exporting such a series allocated an Array of billions of
+  slots. An `ExponentialHistogram` data point now carries the series' finite
+  observations only — the clamp bucket and `NaN`s are left out of the bucket
+  arrays and out of `count`, and `sum` is omitted, as the field is `optional`,
+  once the accumulated sum is no longer finite, which is what the OTel SDKs do
+  — and a series needing more than 1024 dense slots on either side is merged to
+  a coarser exported `scale` until it fits. The Prometheus-side value is
+  untouched; `Formats::Protobuf` still exposes every observation.
+- `NativeHistogram` puts a subnormal observation (under `Float::MIN`) in the
+  right bucket. The bucket bounds down there are subnormal too and the `2.0**x`
+  the index search compares against underflows to zero among them, so a
+  subnormal landed in a neighbouring bucket; it is now scaled into the normal
+  range by a power of two first, which is exact, and its index shifted back.
+- `Middleware::Exporter` serves `/metrics?x=1`. A `Protocol::HTTP` request
+  target carries its query string, unlike Rack's `PATH_INFO`, so the exact
+  match on the path meant a Prometheus scrape config with `params:` fell
+  through to the wrapped app. The path component is now matched; `/metrics/`,
+  `/METRICS` and `/metricsx` still delegate.
+- Content negotiation is a function of the request header's bytes, whatever
+  encoding the String is tagged with, and never raises. A UTF-8-tagged header
+  holding invalid bytes — what a client can send and a Rack harness hands over
+  as it arrived — used to raise `ArgumentError` out of `Exposition.render` and
+  fail the scrape; a header that cannot be made sense of now simply scores
+  nothing, which is text and no compression, and a well-formed member beside
+  garbage still selects.
+
 ## [0.3.2] - 2026-09-19
 
 ### Changed

@@ -59,6 +59,20 @@ describe Fast::Prometheus::NativeHistogram do
       expect(slot.positive_buckets).to be(:==, [[2, 1]])
     end
 
+    it "anchors: schema 0, the smallest subnormal (2**-1074) -> -1074" do
+      nh = Fast::Prometheus::NativeHistogram.new(:t, docstring: "t", schema: 0, zero_threshold: 0.0)
+      nh.observe(5e-324)
+      slot = nh.get
+      expect(slot.positive_buckets).to be(:==, [[-1074, 1]])
+    end
+
+    it "anchors: schema 3, 2**-1073 -> -8584" do
+      nh = Fast::Prometheus::NativeHistogram.new(:t, docstring: "t", schema: 3, zero_threshold: 0.0)
+      nh.observe(1e-323)
+      slot = nh.get
+      expect(slot.positive_buckets).to be(:==, [[-8584, 1]])
+    end
+
     it "exact power of base lands in bucket where it is the upper bound" do
       nh = Fast::Prometheus::NativeHistogram.new(:t, docstring: "t", schema: 0)
       nh.observe(2.0)
@@ -129,6 +143,20 @@ describe Fast::Prometheus::NativeHistogram do
       expect(slot.sum).to be(:==, -Float::INFINITY)
       expect(slot.positive_buckets).to be(:==, [])
       expect(slot.negative_buckets).to be(:==, [[Fast::Prometheus::NativeHistogram::MAX_BUCKET_INDEX, 1]])
+    end
+
+    it "raises on a non-Numeric value" do
+      nh = Fast::Prometheus::NativeHistogram.new(:t, docstring: "t")
+      [nil, "1.5", :sym, [1]].each do |bad|
+        expect { nh.observe(bad) }.to raise_exception(ArgumentError)
+      end
+    end
+
+    it "observes any Numeric" do
+      nh = Fast::Prometheus::NativeHistogram.new(:t, docstring: "t")
+      nh.observe(1)
+      nh.observe(2.5r)
+      expect(nh.get.count).to be(:==, 2)
     end
 
     it "NaN/±Inf never raise" do

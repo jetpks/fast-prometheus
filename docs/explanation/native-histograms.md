@@ -55,6 +55,21 @@ config that asks for it.
 
 `OTLP::Mapper` maps a `:native_histogram` series to OTLP's `ExponentialHistogram` data point
 type — the OTLP model's native representation for the same sparse exponential shape, so the
-mapping is direct: `schema` becomes OTLP `scale`, `zero_count`/`zero_threshold` carry over
-as-is, and the sparse `{index => count}` maps become OTLP's offset + dense bucket-count
-arrays.
+mapping is direct: the exported `scale` is the series' `schema`, coarser by one step for
+each halving a series too wide for a dense array needs (below); `zero_count`/`zero_threshold`
+carry over as-is, and the sparse `{index => count}` maps become OTLP's offset + dense
+bucket-count arrays.
+
+Two things don't survive the crossing. A `±Inf` observation, which Prometheus keeps by
+clamping it into the bucket at `MAX_BUCKET_INDEX`, has no bucket in the OTLP model, and a
+NaN, which Prometheus counts without bucketing, has nothing OTLP can count it as. So the
+data point carries the series' finite observations only: the clamp bucket is dropped, those
+observations are excluded from `count`, and `sum` — an `optional` field there — is omitted
+rather than exported as an infinity or a NaN. The Prometheus-side value is unaffected;
+`Formats::Protobuf` still exposes every observation.
+
+OTLP's bucket counts are one contiguous array per side where Prometheus' are a sparse map,
+so two observations far apart in magnitude would otherwise cost an array as wide as the
+distance between them. Beyond 1024 slots the mapper halves the resolution the same way
+downscaling does — merging adjacent buckets and reporting the coarser `scale` — until both
+sides fit.

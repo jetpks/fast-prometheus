@@ -39,6 +39,12 @@ module Fast
       # client_golang math.MaxInt32 convention for clamped ±Inf bucket index.
       MAX_BUCKET_INDEX = (2**31) - 1
 
+      # Powers of two a subnormal is scaled up by before its bucket is found —
+      # enough to bring the smallest of them (2**-1074) well into the normal
+      # range, and a multiple of 2**4 so the index shifts by a whole bucket at
+      # every schema.
+      SUBNORMAL_SHIFT = 64
+
       attr_reader :schema, :zero_threshold, :max_buckets
 
       def initialize(name, docstring:, labels: [], preset_labels: {}, schema: 3, zero_threshold: 2.0**-128,
@@ -63,8 +69,11 @@ module Fast
         :native_histogram
       end
 
-      # Record an observation. Never raises — NaN/±Inf are handled gracefully.
+      # Record an observation. A non-Numeric is an ArgumentError, as it is on
+      # every other type; NaN and ±Inf are handled gracefully and never raise.
       def observe(value, labels: NO_LABELS)
+        raise ArgumentError, "value must be a numeric" unless value.is_a?(Numeric)
+
         v = value.to_f
         key = resolve(labels)
 
@@ -135,7 +144,19 @@ module Fast
                                  slot.positive_buckets, slot.negative_buckets).freeze
       end
 
+      # ceil(log2(value) * 2**schema), the log2 estimate corrected against the
+      # bucket bounds either side of it.
+      #
+      # A subnormal value is scaled into the normal range first: its bounds
+      # are subnormal too, and the 2.0**x below underflows to zero among them,
+      # which puts the smallest values in the wrong bucket. Scaling by a power
+      # of two is exact, and moves every index by that power times the schema.
       def index_for(value, schema)
+        if value < Float::MIN
+          shift = schema.positive? ? SUBNORMAL_SHIFT << schema : SUBNORMAL_SHIFT >> -schema
+          return index_for(Math.ldexp(value, SUBNORMAL_SHIFT), schema) - shift
+        end
+
         factor = 2.0**schema
         idx = (Math.log2(value) * factor).ceil
         idx -= 1 while 2.0**((idx - 1) / factor) >= value

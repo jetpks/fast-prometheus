@@ -66,13 +66,21 @@ Constructor
 
 | Keyword | Default | Meaning |
 |---|---|---|
-| `resource_attributes:` | `{}` | Converted to OTLP `KeyValue` attributes on the request's `Resource`. |
-| `start_time:` | `Time.now` | Used as `start_time_unix_nano` on every data point (cumulative aggregation start). |
+| `resource_attributes:` | `{}` | Converted to OTLP `KeyValue` attributes on the request's `Resource`. Keys may be Symbols or Strings and are stringified. Values keep their type: `String` → `string_value`, `Integer` → `int_value`, `Float` → `double_value`, `true`/`false` → `bool_value`, anything else its `to_s` into `string_value`. (Label attributes on a data point are always `string_value`.) |
+| `start_time:` | `Time.now` | Used as `start_time_unix_nano` on every data point (cumulative aggregation start). A `Time`: it and `snapshot.taken_at` are carried as exact nanoseconds (`tv_sec`/`tv_nsec`), never through a `Float`. |
 
 Methods
 
 | Signature | Returns | Notes |
 |---|---|---|
-| `request(snapshot)` | `Fast::Prometheus::OTLP::Proto::ExportMetricsServiceRequest` | `:counter`/`:gauge` map to OTLP `Sum`/`Gauge`; `:histogram` maps to OTLP `Histogram` (cumulative); `:summary` maps to OTLP `Summary`; `:native_histogram` maps to OTLP `ExponentialHistogram`, with `scale: schema` and OTLP bucket offsets equal to `prom_index - 1`. |
+| `request(snapshot)` | `Fast::Prometheus::OTLP::Proto::ExportMetricsServiceRequest` | `:counter`/`:gauge` map to OTLP `Sum`/`Gauge`; `:histogram` maps to OTLP `Histogram` (cumulative); `:summary` maps to OTLP `Summary`; `:native_histogram` maps to OTLP `ExponentialHistogram`, whose `scale` is the series' `schema` — one step coarser for each halving the mapper needs to fit a wide series into 1024 dense buckets per side (see below) — and whose bucket offsets are `prom_index - 1` at that scale. |
+
+An `ExponentialHistogram` data point carries only its series' **finite** observations: OTLP
+has no bucket for an infinity and no count for a NaN, so `±Inf` (which `NativeHistogram`
+clamps into a bucket) and NaN are left out of `count` and out of both bucket arrays, and
+`sum` is omitted — the field is `optional` — once the series' accumulated sum is no longer
+finite. A series whose buckets would need more than 1024 dense slots on either side is
+merged to a coarser `scale` (halving resolution, as `NativeHistogram` downscales) until it
+fits, so no export sizes an array by the distance between two observations.
 
 No protobuf descriptors are registered by this module; see [Reference: require paths and dependencies](require-paths.md).

@@ -7,6 +7,10 @@ module Fast
   module Prometheus
     # Metric is the abstract base class for all metric types.
     #
+    # Declared label names are normalized to Symbols and label values (and the
+    # docstring) to valid UTF-8 here, where they enter the store, so no reader
+    # or renderer downstream can meet a mixed encoding or an invalid one.
+    #
     # Every metric's per-series storage is a Store, guarded by its own lock.
     # Metrics produced by #with_labels share their parent's Store (and thus
     # its lock), so a mutation on a bound metric and a mutation on its parent
@@ -21,13 +25,14 @@ module Fast
       def initialize(name, docstring:, labels: [], preset_labels: {}, store: nil)
         validate_metric_name(name)
         validate_docstring(docstring)
-        validate_label_names(labels)
-        validate_preset_labels(labels, preset_labels)
-
         @name = name.to_s.to_sym
-        @docstring = docstring
-        @labels = labels
-        @preset_labels = preset_labels.transform_values { |v| v.to_s.freeze }
+        @docstring = normalize_text(docstring)
+
+        @labels = labels.map { |label| label.to_s.to_sym }.freeze
+        validate_label_names(@labels)
+        @preset_labels = preset_labels.to_h { |key, value| [key.to_s.to_sym, normalize_text(value).freeze] }
+        validate_preset_labels(@labels, @preset_labels)
+
         @store = store || Store.new
 
         return unless fully_bound?
@@ -59,7 +64,7 @@ module Fast
 
       def with_labels(**labels)
         validate_label_keys(labels)
-        merged = @preset_labels.merge(labels.transform_values { |v| v.to_s.freeze })
+        merged = @preset_labels.merge(labels.transform_values { |v| normalize_text(v).freeze })
         self.class.new(
           @name,
           docstring: @docstring,
@@ -109,7 +114,7 @@ module Fast
 
         @labels.map do |n|
           if labels.key?(n)
-            labels[n].to_s
+            normalize_text(labels[n])
           else
             value = @preset_labels[n]
             raise InvalidLabelSet, "missing labels: #{n.inspect}" unless value
@@ -164,6 +169,29 @@ module Fast
         @preset_labels.size == @labels.size
       end
 
+      # Label values and docstrings are stored as valid UTF-8 bytes. An
+      # ASCII-only String already is one, whatever encoding it is tagged with
+      # (US-ASCII from Integer#to_s or Symbol#to_s, BINARY from a Rack env),
+      # so it is returned as is: #ascii_only? is coderange-cached, and the hot
+      # path allocates nothing per value. Only a non-ASCII String pays for the
+      # tag check, and valid UTF-8 is still returned as is — String#scrub
+      # would copy.
+      def normalize_text(value)
+        string = value.is_a?(String) ? value : value.to_s
+        return string if string.ascii_only?
+
+        case string.encoding
+        when Encoding::UTF_8
+          string.valid_encoding? ? string : string.scrub
+        when Encoding::BINARY
+          # Reinterpreted, never transcoded: BINARY is bytes, not a charset.
+          # #scrub! returns self, so the dup is the only object either way.
+          string.dup.force_encoding(Encoding::UTF_8).scrub!
+        else
+          string.encode(Encoding::UTF_8, invalid: :replace, undef: :replace)
+        end
+      end
+
       def validate_metric_name(name)
         return if name.to_s.match?(METRIC_NAME)
 
@@ -176,12 +204,18 @@ module Fast
         raise ArgumentError, "docstring must be a non-empty string"
       end
 
+      # Validates the already-normalized Symbol names as a set: each one a
+      # legal, unreserved label name, and no two of them the same.
       def validate_label_names(labels)
         labels.each do |label|
-          name = label.to_s
+          name = label.name
           raise InvalidLabelName, "label name must not start with __: #{label.inspect}" if name.start_with?("__")
           raise InvalidLabelName, "invalid label name: #{label.inspect}" unless name.match?(LABEL_NAME)
         end
+
+        return if labels.uniq.size == labels.size
+
+        raise InvalidLabelName, "duplicate label names: #{labels.inspect}"
       end
 
       def validate_preset_labels(labels, preset_labels)

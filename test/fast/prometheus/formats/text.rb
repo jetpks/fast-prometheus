@@ -145,6 +145,34 @@ describe Fast::Prometheus::Formats::Text do
       )
     end
 
+    it "renders an ASCII-only body as a UTF-8 String" do
+      registry = Fast::Prometheus::Registry.new
+      registry.counter(:up, docstring: "Up").increment
+      output = Fast::Prometheus::Formats::Text.render(registry.collect)
+      expect(output.encoding).to be(:==, Encoding::UTF_8)
+    end
+
+    it "renders an ASCII label value tagged BINARY as a UTF-8 body" do
+      registry = Fast::Prometheus::Registry.new
+      c = registry.counter(:c, docstring: "C", labels: [:method])
+      c.increment(labels: { method: "GET".b })
+      output = Fast::Prometheus::Formats::Text.render(registry.collect)
+      expect(output.encoding).to be(:==, Encoding::UTF_8)
+      expect(output).to be(:include?, 'c{method="GET"} 1.0')
+    end
+
+    it "renders mixed-encoding docstrings and label values as valid UTF-8" do
+      registry = Fast::Prometheus::Registry.new
+      c = registry.counter(:c, docstring: "caf\xe9".dup.force_encoding("ISO-8859-1"), labels: [:v])
+      c.increment(labels: { v: "\xff\xfe".b })
+      c.increment(labels: { v: "café" })
+      output = Fast::Prometheus::Formats::Text.render(registry.collect)
+      expect(output.encoding).to be(:==, Encoding::UTF_8)
+      expect(output.valid_encoding?).to be(:==, true)
+      expect(output).to be(:include?, "# HELP c café")
+      expect(output).to be(:include?, 'v="café"')
+    end
+
     it "renders Float::INFINITY boundary as +Inf" do
       registry = Fast::Prometheus::Registry.new
       h = registry.histogram(:h, docstring: "H", buckets: [1.0])

@@ -14,15 +14,23 @@ module Fast
           super(delegate)
           @registry = registry
           @path = path
+          @query_prefix = "#{path}?".freeze
         end
 
         def call(request)
-          return serve_metrics(request) if request.method == "GET" && request.path == @path
+          return serve_metrics(request) if request.method == "GET" && metrics_target?(request.path)
 
           super
         end
 
         private
+
+        # A Protocol::HTTP request target carries its query string ("/metrics?x=1"),
+        # unlike Rack's PATH_INFO, so match the path component: the path itself,
+        # or the path followed by any query.
+        def metrics_target?(target)
+          target == @path || target.start_with?(@query_prefix)
+        end
 
         def serve_metrics(request)
           body, headers = Exposition.render(

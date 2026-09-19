@@ -15,6 +15,12 @@ describe Fast::Prometheus::Summary do
       end.to raise_exception(Fast::Prometheus::InvalidLabelName)
     end
 
+    it "rejects a String \"quantile\" label" do
+      expect do
+        Fast::Prometheus::Summary.new(:t, docstring: "t", labels: ["quantile"])
+      end.to raise_exception(Fast::Prometheus::InvalidLabelName)
+    end
+
     it "accepts other labels" do
       expect do
         Fast::Prometheus::Summary.new(:t, docstring: "t", labels: [:method])

@@ -40,17 +40,6 @@ module Fast
         series_map { |slot| hash_shape(slot) }
       end
 
-      protected
-
-      def validate_label_names(labels)
-        labels.each do |label|
-          name = label.to_s
-          raise InvalidLabelName, "reserved label name: :quantile" if name == "quantile"
-        end
-
-        super
-      end
-
       private
 
       def zero_value
@@ -63,6 +52,12 @@ module Fast
 
       def hash_shape(slot)
         { "count" => slot.count, "sum" => slot.sum }
+      end
+
+      def validate_label_names(labels)
+        raise InvalidLabelName, "reserved label name: :quantile" if labels.include?(:quantile)
+
+        super
       end
     end
   end

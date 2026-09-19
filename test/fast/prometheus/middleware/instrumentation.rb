@@ -48,7 +48,65 @@ describe Fast::Prometheus::Middleware::Instrumentation do
     end
   end
 
+  describe "method label" do
+    let(:instrumentation) { Fast::Prometheus::Middleware::Instrumentation.new(delegate, registry: registry) }
+
+    def methods_recorded
+      registry.get(:http_server_requests_total).values.keys.map { |labels| labels[:method] }
+    end
+
+    it "records an allowlisted method under its own name" do
+      allowed = %w[GET HEAD POST PUT DELETE CONNECT OPTIONS TRACE PATCH]
+      allowed.each { |method| instrumentation.call(Protocol::HTTP::Request[method, "/hello"]) }
+
+      expect(methods_recorded).to be(:==, allowed)
+    end
+
+    it "collapses every other token to _OTHER, case included" do
+      %w[get PROPFIND M1].each { |method| instrumentation.call(Protocol::HTTP::Request[method, "/hello"]) }
+
+      expect(methods_recorded).to be(:==, ["_OTHER"])
+      expect(registry.get(:http_server_requests_total).get(labels: { method: "_OTHER", status: "200" }))
+        .to be(:==, 3.0)
+    end
+  end
+
+  describe "pre-registered metrics" do
+    it "reuses a metric declaring the same labels" do
+      registry = Fast::Prometheus::Registry.new
+      counter = registry.counter(:http_server_requests_total, docstring: "mine", labels: %i[method status])
+      instrumentation = Fast::Prometheus::Middleware::Instrumentation.new(delegate, registry: registry)
+      instrumentation.call(Protocol::HTTP::Request["GET", "/hello"])
+
+      expect(counter.get(labels: { method: "GET", status: "200" })).to be(:==, 1.0)
+    end
+
+    it "raises at construction when a metric declares other labels" do
+      registry = Fast::Prometheus::Registry.new
+      registry.counter(:http_server_requests_total, docstring: "mine", labels: %i[method path])
+
+      expect { Fast::Prometheus::Middleware::Instrumentation.new(delegate, registry: registry) }
+        .to raise_exception(Fast::Prometheus::InvalidLabelSet)
+    end
+
+    it "raises at construction when a metric is not the kind its name promises" do
+      registry = Fast::Prometheus::Registry.new
+      registry.gauge(:http_server_requests_total, docstring: "mine", labels: %i[method status])
+
+      expect { Fast::Prometheus::Middleware::Instrumentation.new(delegate, registry: registry) }
+        .to raise_exception(Fast::Prometheus::InvalidMetricType)
+    end
+  end
+
   describe "raising delegate" do
+    let(:failing_histogram) do
+      Class.new(Fast::Prometheus::Histogram) do
+        def observe(*, **)
+          raise "observe failed"
+        end
+      end
+    end
+
     it "records status 500 and re-raises" do
       registry = Fast::Prometheus::Registry.new
       delegate = Protocol::HTTP::Middleware.for do |_request|
@@ -65,7 +123,10 @@ describe Fast::Prometheus::Middleware::Instrumentation do
 
     it "propagates the delegate's exception even when recording fails" do
       registry = Fast::Prometheus::Registry.new
-      registry.counter(:http_server_requests_total, docstring: "x", labels: [:path])
+      # A duration metric of the right kind and labels whose observation fails,
+      # so recording the 500 raises on top of the delegate's exception.
+      registry.register(failing_histogram.new(:http_server_request_duration_seconds,
+                                              docstring: "x", labels: %i[method status]))
       delegate = Protocol::HTTP::Middleware.for do |_request|
         raise "boom"
       end
