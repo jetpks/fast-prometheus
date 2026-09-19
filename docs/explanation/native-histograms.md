@@ -55,9 +55,10 @@ config that asks for it.
 
 `OTLP::Mapper` maps a `:native_histogram` series to OTLP's `ExponentialHistogram` data point
 type — the OTLP model's native representation for the same sparse exponential shape, so the
-mapping is direct: `schema` becomes OTLP `scale`, `zero_count`/`zero_threshold` carry over
-as-is, and the sparse `{index => count}` maps become OTLP's offset + dense bucket-count
-arrays.
+mapping is direct: the exported `scale` is the series' `schema`, coarser by one step for
+each halving a series too wide for a dense array needs (below); `zero_count`/`zero_threshold`
+carry over as-is, and the sparse `{index => count}` maps become OTLP's offset + dense
+bucket-count arrays.
 
 Two things don't survive the crossing. A `±Inf` observation, which Prometheus keeps by
 clamping it into the bucket at `MAX_BUCKET_INDEX`, has no bucket in the OTLP model, and a

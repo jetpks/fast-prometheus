@@ -115,6 +115,16 @@ describe Fast::Prometheus::Metric do
       expect(metric.public_resolve(v: value).first.equal?(value)).to be(:==, true)
     end
 
+    it "stores an ASCII-only value as the caller's own object whatever it is tagged with" do
+      value = "GET".b
+      expect(metric.public_resolve(v: value).first.equal?(value)).to be(:==, true)
+    end
+
+    it "converts a non-String with to_s" do
+      expect(metric.public_resolve(v: 200)).to be(:==, ["200"])
+      expect(metric.public_resolve(v: :get)).to be(:==, ["get"])
+    end
+
     it "reinterprets BINARY bytes as UTF-8 and scrubs them" do
       expect(metric.public_resolve(v: "a\xffb".b)).to be(:==, ["a�b"])
     end

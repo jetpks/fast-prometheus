@@ -82,11 +82,12 @@ encoding.
 `increment(labels: { method: "GET" })`. A `String` key at observe time is an unknown label and
 raises `InvalidLabelSet`.
 
-**Values** (per-call `labels:`, `preset_labels:`, `with_labels`) are stored as valid UTF-8.
-A non-`String` is converted with `to_s` first, then:
+**Values** (per-call `labels:`, `preset_labels:`, `with_labels`) are stored as valid UTF-8
+bytes. A non-`String` is converted with `to_s` first, then:
 
 | Input | Stored as |
 |---|---|
+| ASCII-only, any encoding | the caller's own object, unchanged, encoding tag and all — ASCII bytes are already valid UTF-8, so `"GET".b` from a Rack env, `200.to_s`'s `US-ASCII` and a UTF-8 literal all cost nothing and all render the same bytes |
 | UTF-8, valid | the caller's own object, unchanged — the hot path allocates nothing for it |
 | UTF-8, invalid | scrubbed (`String#scrub`); each invalid byte sequence becomes `U+FFFD` |
 | `BINARY` (`ASCII-8BIT`) | reinterpreted as UTF-8 bytes and scrubbed, never transcoded — `BINARY` is bytes, not a charset, so `"na\xefve".b` becomes `"na�ve"` |
@@ -152,7 +153,7 @@ Constructor
 | `docstring:` | required | See `Metric`. |
 | `labels:` | `[]` | See `Metric`; `:le` is reserved — as is `"le"`, which normalizes to it — and raises `InvalidLabelName`. |
 | `preset_labels:` | `{}` | See `Metric`. |
-| `buckets:` | `Histogram::DEFAULT_BUCKETS` | Upper bounds, ascending; raises `ArgumentError` if empty, non-`Numeric`, or not strictly ascending. Copied and frozen at construction. |
+| `buckets:` | `Histogram::DEFAULT_BUCKETS` | Upper bounds, ascending; raises `ArgumentError` if empty, non-`Numeric`, non-finite, or not strictly ascending. Every bound is finite: the `+Inf` bucket is implicit and always rendered, so an explicit `Float::INFINITY` (or a `Float::NAN`) bound is a mistake, not a second `+Inf`. Copied and frozen at construction. |
 | `store:` | `nil` | See `Metric`. |
 
 `DEFAULT_BUCKETS` is `[0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10]`.

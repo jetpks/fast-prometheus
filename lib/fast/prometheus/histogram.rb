@@ -46,6 +46,7 @@ module Fast
       def initialize(name, docstring:, labels: [], preset_labels: {}, buckets: DEFAULT_BUCKETS, store: nil)
         raise ArgumentError, "buckets must be a non-empty Array" unless buckets.is_a?(Array) && !buckets.empty?
         raise ArgumentError, "buckets must contain only Numeric values" unless buckets.all? { |b| b.is_a?(Numeric) }
+        raise ArgumentError, "buckets must contain only finite values" unless buckets.all?(&:finite?)
         raise ArgumentError, "buckets must be strictly ascending" unless buckets.each_cons(2).all? { |a, b| a < b }
 
         @buckets = buckets.dup.freeze
@@ -120,12 +121,6 @@ module Fast
         { buckets: @buckets }
       end
 
-      def validate_label_names(labels)
-        raise InvalidLabelName, "reserved label name: :le" if labels.include?(:le)
-
-        super
-      end
-
       private
 
       def zero_value
@@ -146,6 +141,12 @@ module Fast
         hash["+Inf"] = pairs.last.last
         hash["sum"] = slot.sum
         hash
+      end
+
+      def validate_label_names(labels)
+        raise InvalidLabelName, "reserved label name: :le" if labels.include?(:le)
+
+        super
       end
     end
   end
