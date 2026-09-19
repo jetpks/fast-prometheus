@@ -138,9 +138,9 @@ check("registry") do
   c = registry.counter(:reg_snapshot, docstring: "d")
   c.increment(by: 1)
   snapshot = registry.collect
-  before = snapshot.metrics.find { |m| m.name == :reg_snapshot }.series.first.value
+  before = snapshot.metrics.find { |m| m.name == :reg_snapshot }.series.values.first
   c.increment(by: 100)
-  still = snapshot.metrics.find { |m| m.name == :reg_snapshot }.series.first.value
+  still = snapshot.metrics.find { |m| m.name == :reg_snapshot }.series.values.first
   assert_eq(before, 1.0, "snapshot is not point-in-time (pre-mutation value already wrong)")
   assert_eq(still, 1.0, "snapshot is not point-in-time: mutated after later increment")
 end

@@ -80,20 +80,22 @@ module Fast
           header = Proto::MetricFamily.new(name: metric_snapshot.name.name, help: metric_snapshot.docstring,
                                            type: TYPE_MAP.fetch(metric_snapshot.type))
           type = metric_snapshot.type
-          metric_snapshot.series.each_with_object(header.encode) do |series, buffer|
+          names = metric_snapshot.label_names
+          buffer = header.encode
+          metric_snapshot.series.each_pair do |values, value|
             scratch.clear
-            append_metric(scratch, series, type)
+            append_metric(scratch, names, values, value, type)
             buffer << FAMILY_METRIC
             Fast::Protowire::Wire.append_varint(buffer, scratch.bytesize)
             buffer << scratch
           end
+          buffer
         end
 
         # Metric: labels (1) then the one value field for the type, in
         # field-number order as the declared encoder would write them.
-        private_class_method def self.append_metric(out, series, type)
-          series.labels.each { |name, value| append_label_pair(out, name, value) }
-          value = series.value
+        private_class_method def self.append_metric(out, names, values, value, type)
+          names.each_index { |i| append_label_pair(out, names[i], values[i]) }
           case type
           when :counter then append_scalar_message(out, METRIC_COUNTER, value)
           when :gauge then append_scalar_message(out, METRIC_GAUGE, value)

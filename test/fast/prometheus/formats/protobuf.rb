@@ -186,7 +186,7 @@ describe Fast::Prometheus::Formats::Protobuf do
       )
       metric = Fast::Prometheus::MetricSnapshot.new(
         name: :h, docstring: "h", type: :native_histogram, label_names: [],
-        series: [Fast::Prometheus::Series.new(labels: {}, value: value)]
+        series: { [] => value }
       )
       snapshot = Fast::Prometheus::Snapshot.new(metrics: [metric], taken_at: Time.now)
       frames = split_frames(Fast::Prometheus::Formats::Protobuf.render(snapshot))

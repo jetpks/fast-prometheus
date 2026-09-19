@@ -54,8 +54,8 @@ module Fast
           when :counter
             {
               sum: Proto::Sum.new(
-                data_points: metric_snapshot.series.map do |series|
-                  number_data_point(series, time_unix_nano)
+                data_points: data_points(metric_snapshot) do |attributes, value|
+                  number_data_point(attributes, value, time_unix_nano)
                 end,
                 aggregation_temporality: CUMULATIVE,
                 is_monotonic: true
@@ -64,16 +64,16 @@ module Fast
           when :gauge
             {
               gauge: Proto::Gauge.new(
-                data_points: metric_snapshot.series.map do |series|
-                  number_data_point(series, time_unix_nano)
+                data_points: data_points(metric_snapshot) do |attributes, value|
+                  number_data_point(attributes, value, time_unix_nano)
                 end
               )
             }
           when :histogram
             {
               histogram: Proto::Histogram.new(
-                data_points: metric_snapshot.series.map do |series|
-                  histogram_data_point(series, time_unix_nano)
+                data_points: data_points(metric_snapshot) do |attributes, value|
+                  histogram_data_point(attributes, value, time_unix_nano)
                 end,
                 aggregation_temporality: CUMULATIVE
               )
@@ -81,16 +81,16 @@ module Fast
           when :summary
             {
               summary: Proto::Summary.new(
-                data_points: metric_snapshot.series.map do |series|
-                  summary_data_point(series, time_unix_nano)
+                data_points: data_points(metric_snapshot) do |attributes, value|
+                  summary_data_point(attributes, value, time_unix_nano)
                 end
               )
             }
           when :native_histogram
             {
               exponential_histogram: Proto::ExponentialHistogram.new(
-                data_points: metric_snapshot.series.map do |series|
-                  exponential_histogram_data_point(series, time_unix_nano)
+                data_points: data_points(metric_snapshot) do |attributes, value|
+                  exponential_histogram_data_point(attributes, value, time_unix_nano)
                 end,
                 aggregation_temporality: CUMULATIVE
               )
@@ -98,25 +98,30 @@ module Fast
           end
         end
 
-        def number_data_point(series, time_unix_nano)
+        # One data point per series: the block gets the series' OTLP
+        # attributes and its snapshot value.
+        def data_points(metric_snapshot)
+          metric_snapshot.series.map { |values, value| yield build_attributes(metric_snapshot.labels(values)), value }
+        end
+
+        def number_data_point(attributes, value, time_unix_nano)
           Proto::NumberDataPoint.new(
-            attributes: build_attributes(series.labels),
+            attributes: attributes,
             start_time_unix_nano: @start_time_unix_nano,
             time_unix_nano: time_unix_nano,
-            as_double: series.value.to_f
+            as_double: value.to_f
           )
         end
 
-        def histogram_data_point(series, time_unix_nano)
-          nv = series.value
-          bounds, counts = non_cumulative_buckets(nv.cumulative_buckets)
+        def histogram_data_point(attributes, value, time_unix_nano)
+          bounds, counts = non_cumulative_buckets(value.cumulative_buckets)
 
           Proto::HistogramDataPoint.new(
-            attributes: build_attributes(series.labels),
+            attributes: attributes,
             start_time_unix_nano: @start_time_unix_nano,
             time_unix_nano: time_unix_nano,
-            count: nv.count,
-            sum: nv.sum,
+            count: value.count,
+            sum: value.sum,
             bucket_counts: counts,
             explicit_bounds: bounds
           )
@@ -139,32 +144,28 @@ module Fast
           [bounds, counts]
         end
 
-        def summary_data_point(series, time_unix_nano)
-          sv = series.value
-
+        def summary_data_point(attributes, value, time_unix_nano)
           Proto::SummaryDataPoint.new(
-            attributes: build_attributes(series.labels),
+            attributes: attributes,
             start_time_unix_nano: @start_time_unix_nano,
             time_unix_nano: time_unix_nano,
-            count: sv.count,
-            sum: sv.sum
+            count: value.count,
+            sum: value.sum
           )
         end
 
-        def exponential_histogram_data_point(series, time_unix_nano)
-          nv = series.value
-
+        def exponential_histogram_data_point(attributes, value, time_unix_nano)
           Proto::ExponentialHistogramDataPoint.new(
-            attributes: build_attributes(series.labels),
+            attributes: attributes,
             start_time_unix_nano: @start_time_unix_nano,
             time_unix_nano: time_unix_nano,
-            count: nv.count,
-            sum: nv.sum,
-            scale: nv.schema,
-            zero_count: nv.zero_count,
-            zero_threshold: nv.zero_threshold,
-            positive: dense_buckets(nv.positive_buckets),
-            negative: dense_buckets(nv.negative_buckets)
+            count: value.count,
+            sum: value.sum,
+            scale: value.schema,
+            zero_count: value.zero_count,
+            zero_threshold: value.zero_threshold,
+            positive: dense_buckets(value.positive_buckets),
+            negative: dense_buckets(value.negative_buckets)
           )
         end
 

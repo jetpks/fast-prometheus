@@ -30,12 +30,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   from 100,840 to 10,631 objects and a protobuf render from 342,705 to 6,165
   (0.114 s to 0.030 s); in the 36k-series server harness, protobuf+gzip
   scrapes went from 0.92 s to 0.27 s and text from 0.20 s to 0.11 s.
-- `Registry#collect` builds each series' label Hash once and hands it to the
-  snapshot frozen (no `Array#zip` pairs, no second copy): 110,741 to 15,941
-  objects for the same registry. `Series`, `HistogramValue`, `SummaryValue`
-  and `NativeHistogramValue` are frozen `Struct`s rather than `Data`, since
-  `Data.new` allocates two objects besides the instance and a scrape builds
-  one per series; `Snapshot` and `MetricSnapshot` are still `Data`.
+- `MetricSnapshot#series` is the metric's store copied under its lock: a
+  frozen `Hash` from each series' label values (an `Array` in `label_names`
+  order) to its value, with `MetricSnapshot#labels(values)` for the
+  `{name => value}` view. The `Series` object and its per-series label Hash
+  are gone, and with them the snapshot's per-series cost: `Registry#collect`
+  over 36,000 series x 12 labels went from 34 ms, 72,056 objects and 19 MiB
+  to 1 ms, 342 objects and the 2 MiB copy. `Metric#snapshot_values` is keyed
+  the same way; `Metric#values` keeps its label-Hash keys. `HistogramValue`,
+  `SummaryValue` and `NativeHistogramValue` are frozen `Struct`s rather than
+  `Data`, since `Data.new` allocates two objects besides the instance;
   `Histogram#cumulative_buckets` and the native histogram bucket readers
   return frozen pairs.
 - A bound or unlabeled `increment`/`observe`/`set` allocates nothing (the

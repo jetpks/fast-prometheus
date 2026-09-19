@@ -54,11 +54,11 @@ describe "allocations" do
     expect(allocations(100) { histogram.observe(0.1, labels: labels) }).to be(:<, 2)
   end
 
-  it "collects a snapshot in a few objects per series" do
+  it "collects a snapshot in a handful of objects, whatever the series count" do
     series = 500
     wide_registry(series)
     registry.collect
-    expect(allocations { registry.collect }).to be(:<, series * 3)
+    expect(allocations { registry.collect }).to be(:<, 100)
   end
 
   it "renders text in about one object per sample line" do

@@ -16,19 +16,19 @@ are what the process paid over the ten timed renders.
 
 | renderer | output | s/render | objects/render | malloc MiB/render | live arenas after | GC runs (10 renders) | GC ms |
 |---|---|---|---|---|---|---|---|
-| fast-prometheus text | 11.2 MB | 0.065 | 36,595 | 16.0 | 0 | 1 minor + 1 major | 25 |
-| fast-prometheus protobuf (fast-protowire) | 11.8 MB | 0.191 | 187 | 32.0 | 0 | 6 minor + 3 major | 94 |
-| google-protobuf, one Metric at a time | 11.8 MB | 0.378 | 3,026,113 | 247.8 | 504,424 | 37 minor + 4 major | 920 |
-| google-protobuf, whole family (0.2.0) | 11.8 MB | 0.469 | 2,953,983 | 241.3 | 504,424 | 43 minor + 9 major | 1686 |
-| prometheus-client text | 11.2 MB | 0.184 | 2,418,769 | 35.0 | 0 | 10 minor + 0 major | 196 |
+| fast-prometheus text | 11.2 MB | 0.066 | 36,594 | 16.0 | 0 | 1 minor + 1 major | 29 |
+| fast-prometheus protobuf (fast-protowire) | 11.8 MB | 0.190 | 183 | 32.0 | 0 | 6 minor + 3 major | 80 |
+| google-protobuf, one Metric at a time | 11.8 MB | 0.388 | 3,530,294 | 242.3 | 504,424 | 47 minor + 4 major | 975 |
+| google-protobuf, whole family (0.2.0) | 11.8 MB | 0.476 | 3,422,107 | 232.7 | 504,424 | 42 minor + 9 major | 1716 |
+| prometheus-client text | 11.2 MB | 0.192 | 2,418,768 | 35.0 | 0 | 10 minor + 0 major | 194 |
 
 The two `google-protobuf` rows are the encoders this gem shipped before
 [fast-protowire](https://github.com/jetpks/fast-protowire): 0.2.0 built every series into
 one `MetricFamily` and encoded it once; the streamed fix encoded one `Metric` at a time.
 Both build a message object per label pair and per series, and each message is a native
 arena plus a Ruby wrapper registered in a process-wide object cache. A scrape of 36,000
-series is 504,424 messages, three million Ruby objects and a quarter gigabyte of malloc
-before the 12 MB body exists, and the garbage collector then spends more time on that
+series is 504,424 messages, three and a half million Ruby objects and a quarter gigabyte
+of malloc before the 12 MB body exists, and the garbage collector then spends more time on that
 garbage (0.9 to 1.7 s per ten scrapes) than the encoder spent producing it. That is the
 problem this gem's protobuf path exists to remove; see
 [Design](design.md).
@@ -39,6 +39,10 @@ the family headers and one scratch buffer. What remains of its 32 MiB is the bod
 the label strings it copies into the buffer. The text renderer allocates one String per
 sample line (the value's `to_s`) and nothing per label; `prometheus-client`'s text
 formatter allocates about 67 per series.
+
+Taking the snapshot the renderers read (`Registry#collect`) is not in the table because
+it is now the same for every row that uses it: at 36,000 series it is one copy of each
+metric's store under its lock, 1 ms, 342 objects and 2 MiB, whatever the label count.
 
 `SERIES=5000 bundle exec ruby benchmark/exposition.rb` runs a smaller registry;
 `BENCH_QUICK=1` shortens the timed runs.
@@ -98,7 +102,7 @@ bundle exec ruby benchmark/exposition.rb                 # 36k-series scrape, ~2
 
 ## Key takeaways
 
-- A protobuf scrape renders in **187 objects** where `google-protobuf` needed 3 million
+- A protobuf scrape renders in **183 objects** where `google-protobuf` needed 3.5 million
   and 504k native arenas; 2.0–2.5x faster, and a tenth of the GC time.
 - The text renderer allocates **66x fewer objects** than `prometheus-client`'s for the
   same body, and renders it 2.8x faster.

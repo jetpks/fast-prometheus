@@ -74,8 +74,8 @@ module GoogleProtobuf
   # 0.2.0: every series as a message inside one MetricFamily, encoded once.
   def self.whole_family(snapshot)
     snapshot.metrics.each_with_object(String.new) do |ms, out|
-      family = PB::MetricFamily.new(name: ms.name.to_s, help: ms.docstring, type: TYPES.fetch(ms.type),
-                                    metric: ms.series.map { |s| metric(s, ms.type) })
+      metrics = ms.series.map { |values, value| metric(ms.label_names, values, value, ms.type) }
+      family = PB::MetricFamily.new(name: ms.name.to_s, help: ms.docstring, type: TYPES.fetch(ms.type), metric: metrics)
       frame = PB::MetricFamily.encode(family)
       Fast::Protowire::Wire.append_varint(out, frame.bytesize)
       out << frame
@@ -86,17 +86,17 @@ module GoogleProtobuf
   def self.per_series(snapshot)
     snapshot.metrics.each_with_object(String.new) do |ms, out|
       header = PB::MetricFamily.new(name: ms.name.to_s, help: ms.docstring, type: TYPES.fetch(ms.type))
-      frame = ms.series.each_with_object(PB::MetricFamily.encode(header)) do |s, buffer|
-        Fast::Protowire::Wire.append_length_delimited(buffer, METRIC_TAG, PB::Metric.encode(metric(s, ms.type)))
+      frame = ms.series.each_with_object(PB::MetricFamily.encode(header)) do |(values, value), buffer|
+        encoded = PB::Metric.encode(metric(ms.label_names, values, value, ms.type))
+        Fast::Protowire::Wire.append_length_delimited(buffer, METRIC_TAG, encoded)
       end
       Fast::Protowire::Wire.append_varint(out, frame.bytesize)
       out << frame
     end
   end
 
-  def self.metric(series, type)
-    labels = series.labels.map { |name, value| PB::LabelPair.new(name: name.to_s, value: value) }
-    value = series.value
+  def self.metric(names, values, value, type)
+    labels = names.zip(values).map { |name, label_value| PB::LabelPair.new(name: name.to_s, value: label_value) }
     case type
     when :counter then PB::Metric.new(label: labels, counter: PB::Counter.new(value: value))
     when :gauge then PB::Metric.new(label: labels, gauge: PB::Gauge.new(value: value))

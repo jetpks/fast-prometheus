@@ -67,7 +67,7 @@ Methods
 | `type` | — | Raises `NotImplementedError`; every subclass overrides. |
 | `with_labels(**labels)` | new instance of the same class | Pre-binds labels for a hot-path metric; shares the parent's store. Raises `InvalidLabelSet` for an unknown label key. Seeds its own series on creation if the result is fully bound. |
 | `values` | `Hash{Hash => value}` | Every series' value keyed by its label hash; shape depends on the metric type — see each type below. |
-| `snapshot_values` | `Hash{Hash => value}` | Every series' value in its frozen snapshot shape (see [`Snapshot`, `MetricSnapshot`, and series value shapes](#snapshot-metricsnapshot-and-series-value-shapes)), keyed by label hash, built under the store lock. `Counter`/`Gauge` use the already-frozen `Float`; `Histogram`, `Summary`, and `NativeHistogram` use `HistogramValue`, `SummaryValue`, and `NativeHistogramValue` respectively — the seam `MetricSnapshot.of` uses. |
+| `snapshot_values` | `Hash{Array => value}` | Every series' value in its frozen snapshot shape (see [`Snapshot`, `MetricSnapshot`, and series value shapes](#snapshot-metricsnapshot-and-series-value-shapes)), keyed by the series' label values in `labels` order (the store's own key): the store copied and its slots frozen under the lock, one Hash however many series. `Counter`/`Gauge` use the already-frozen `Float`; `Histogram`, `Summary`, and `NativeHistogram` use `HistogramValue`, `SummaryValue`, and `NativeHistogramValue` respectively — the seam `MetricSnapshot.of` uses. |
 | `synchronize { ... }` | block's return value | Runs the block exclusively with respect to every other mutation or read of this metric's store, including `with_labels` children. Reentrant on the same thread. |
 
 ### Seeding
@@ -190,13 +190,12 @@ Methods
 
 ## `Snapshot`, `MetricSnapshot`, and series value shapes
 
-Immutable, frozen value types returned by `Registry#collect`: `Snapshot` and `MetricSnapshot` are `Data`; the per-series types (`Series` and the value shapes) are `Struct`s frozen where they are built, because `Data.new` costs two extra objects per instance and a scrape builds one per series. Never constructed by application code directly except via `.of`.
+Immutable, frozen value types returned by `Registry#collect`: `Snapshot` and `MetricSnapshot` are `Data`; the value shapes are `Struct`s frozen where they are built, because `Data.new` costs two extra objects per instance and a scrape builds one per histogram, summary or native histogram series. Never constructed by application code directly except via `.of`.
 
 | Type | Fields | Notes |
 |---|---|---|
 | `Snapshot` | `metrics`, `taken_at` | `.of(metrics)` builds one from an `Array<Metric>`; `taken_at` is `Time.now` at build time. |
-| `MetricSnapshot` | `name`, `docstring`, `type`, `label_names`, `series` | `.of(metric)` builds one from a live `Metric`, entirely under that metric's lock, so no series is observed mid-mutation. |
-| `Series` | `labels`, `value` | One label set and its value; `value`'s shape depends on the metric type. |
+| `MetricSnapshot` | `name`, `docstring`, `type`, `label_names`, `series` | `.of(metric)` builds one from a live `Metric`. `series` is a frozen `Hash` from each series' label values (an `Array` in `label_names` order) to its value: the metric's store copied under its lock, so no series is observed mid-mutation. `labels(values)` turns one key back into a `{name => value}` Hash. |
 | `HistogramValue` | `sum`, `count`, `cumulative_buckets` | `value` for a `:histogram` series. |
 | `SummaryValue` | `sum`, `count` | `value` for a `:summary` series. |
 | `NativeHistogramValue` | `schema`, `zero_threshold`, `zero_count`, `sum`, `count`, `positive_buckets`, `negative_buckets` | `value` for a `:native_histogram` series. |

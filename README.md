@@ -94,9 +94,9 @@ Single process, locked, thread-safe by default (`benchmark-ips` and allocation
 comparisons against `prometheus-client` and `google-protobuf`; see
 [the benchmarks page](docs/explanation/benchmarks.md) for the full runs and conditions):
 
-- A protobuf scrape of 36,000 series renders in **187 objects**, where the
-  `google-protobuf` encoder needed 3 million Ruby objects and 504k native arenas, and
-  in a tenth of the GC time
+- A protobuf scrape of 36,000 series renders in **183 objects**, where the
+  `google-protobuf` encoder needed 3.5 million Ruby objects and 504k native arenas, and
+  in a tenth of the GC time; taking the snapshot it reads is 1 ms and one Hash per metric
 - The text renderer allocates **66x fewer objects** than prometheus-client's formatter
   for the same body, and renders it 2.8x faster
 - Bound counter increments allocate nothing and are **1.46x** faster than

@@ -28,50 +28,52 @@ module Fast
             output << "# HELP " << name << " " << escape_doc(metric.docstring) << "\n"
             output << "# TYPE " << name << " " << metric.type.name << "\n"
 
-            metric.series.each do |series|
-              render_series(output, metric.type, name, series)
+            names = metric.label_names
+            metric.series.each_pair do |values, value|
+              render_series(output, metric.type, name, names, values, value)
             end
           end
         end
 
-        private_class_method def self.render_series(output, type, name, series)
+        private_class_method def self.render_series(output, type, name, names, values, value)
           case type
           when :counter, :gauge
-            sample(output, name, nil, series.labels, series.value)
+            sample(output, name, nil, names, values, value)
           when :histogram
-            histogram_lines(output, name, series.labels, series.value)
+            histogram_lines(output, name, names, values, value)
           when :summary
-            sample(output, name, "_sum", series.labels, series.value.sum)
-            sample(output, name, "_count", series.labels, series.value.count)
+            sample(output, name, "_sum", names, values, value.sum)
+            sample(output, name, "_count", names, values, value.count)
           end
         end
 
-        # One sample line: name, optional suffix, labels (plus an le label
-        # carrying +upper_bound+ for histogram buckets), value.
-        private_class_method def self.sample(output, name, suffix, labels, value, upper_bound = nil)
+        # One sample line: name, optional suffix, labels (names and values
+        # side by side, plus an le label carrying +upper_bound+ for histogram
+        # buckets), value.
+        private_class_method def self.sample(output, name, suffix, names, values, value, upper_bound = nil)
           output << name
           output << suffix if suffix
-          append_labels(output, labels, upper_bound)
+          append_labels(output, names, values, upper_bound)
           output << " " << value.to_s << "\n"
         end
 
-        private_class_method def self.append_labels(output, labels, upper_bound)
-          return if labels.empty? && upper_bound.nil?
+        private_class_method def self.append_labels(output, names, values, upper_bound)
+          return if names.empty? && upper_bound.nil?
 
           output << "{"
-          labels.each { |key, value| output << label_name(key) << "=\"" << escape_label(value) << "\"," }
+          names.each_index { |i| output << label_name(names[i]) << "=\"" << escape_label(values[i]) << "\"," }
           output << "le=\"" << upper_bound << "\"," if upper_bound
           output.chop!
           output << "}"
         end
 
-        private_class_method def self.histogram_lines(output, name, labels, value)
+        private_class_method def self.histogram_lines(output, name, names, values, value)
           value.cumulative_buckets.each do |boundary, count|
-            sample(output, name, "_bucket", labels, count, boundary.infinite? ? "+Inf" : boundary.to_s)
+            sample(output, name, "_bucket", names, values, count, boundary.infinite? ? "+Inf" : boundary.to_s)
           end
 
-          sample(output, name, "_sum", labels, value.sum)
-          sample(output, name, "_count", labels, value.count)
+          sample(output, name, "_sum", names, values, value.sum)
+          sample(output, name, "_count", names, values, value.count)
         end
 
         # Label names are Symbols (Symbol#name is frozen and shared); a

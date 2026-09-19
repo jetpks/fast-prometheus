@@ -36,8 +36,8 @@ describe Fast::Prometheus::Snapshot do
       it "has correct shape" do
         expect(metric.type).to be(:==, :counter)
         expect(metric.series.length).to be(:==, 1)
-        expect(metric.series.first.labels).to be(:==, {})
-        expect(metric.series.first.value).to be(:==, 5.0)
+        expect(metric.series.keys.first).to be(:==, [])
+        expect(metric.series.values.first).to be(:==, 5.0)
       end
     end
 
@@ -47,8 +47,8 @@ describe Fast::Prometheus::Snapshot do
       it "has correct shape" do
         expect(metric.type).to be(:==, :gauge)
         expect(metric.series.length).to be(:==, 1)
-        expect(metric.series.first.labels).to be(:==, { sensor: "cpu" })
-        expect(metric.series.first.value).to be(:==, 22.5)
+        expect(metric.series.keys.first).to be(:==, ["cpu"])
+        expect(metric.series.values.first).to be(:==, 22.5)
       end
     end
 
@@ -57,12 +57,12 @@ describe Fast::Prometheus::Snapshot do
 
       it "has HistogramValue with correct fields" do
         expect(metric.type).to be(:==, :histogram)
-        series = metric.series.first
-        expect(series.value).to be_a(Fast::Prometheus::HistogramValue)
-        expect(series.value.sum).to be(:==, 2.0)
-        expect(series.value.count).to be(:==, 2)
-        expect(series.value.cumulative_buckets.last.first).to be(:==, Float::INFINITY)
-        expect(series.value.cumulative_buckets.last.last).to be(:==, 2)
+        value = metric.series.values.first
+        expect(value).to be_a(Fast::Prometheus::HistogramValue)
+        expect(value.sum).to be(:==, 2.0)
+        expect(value.count).to be(:==, 2)
+        expect(value.cumulative_buckets.last.first).to be(:==, Float::INFINITY)
+        expect(value.cumulative_buckets.last.last).to be(:==, 2)
       end
     end
 
@@ -71,10 +71,10 @@ describe Fast::Prometheus::Snapshot do
 
       it "has SummaryValue with correct fields" do
         expect(metric.type).to be(:==, :summary)
-        series = metric.series.first
-        expect(series.value).to be_a(Fast::Prometheus::SummaryValue)
-        expect(series.value.sum).to be(:==, 300.0)
-        expect(series.value.count).to be(:==, 2)
+        value = metric.series.values.first
+        expect(value).to be_a(Fast::Prometheus::SummaryValue)
+        expect(value.sum).to be(:==, 300.0)
+        expect(value.count).to be(:==, 2)
       end
     end
 
@@ -83,11 +83,11 @@ describe Fast::Prometheus::Snapshot do
 
       it "has NativeHistogramValue with correct fields" do
         expect(metric.type).to be(:==, :native_histogram)
-        series = metric.series.first
-        expect(series.value).to be_a(Fast::Prometheus::NativeHistogramValue)
-        expect(series.value.sum).to be(:==, -1.0)
-        expect(series.value.count).to be(:==, 2)
-        expect(series.value.schema).to be(:==, 3)
+        value = metric.series.values.first
+        expect(value).to be_a(Fast::Prometheus::NativeHistogramValue)
+        expect(value.sum).to be(:==, -1.0)
+        expect(value.count).to be(:==, 2)
+        expect(value.schema).to be(:==, 3)
       end
     end
 
@@ -101,34 +101,34 @@ describe Fast::Prometheus::Snapshot do
         summary.observe(9999)
         native_histogram.observe(9999)
 
-        expect(snap.metrics.find { |m| m.name == :req_total }.series.first.value)
+        expect(snap.metrics.find { |m| m.name == :req_total }.series.values.first)
           .to be(:==, 5.0)
-        expect(snap.metrics.find { |m| m.name == :temp }.series.first.value)
+        expect(snap.metrics.find { |m| m.name == :temp }.series.values.first)
           .to be(:==, 22.5)
-        expect(snap.metrics.find { |m| m.name == :dur }.series.first.value.count)
+        expect(snap.metrics.find { |m| m.name == :dur }.series.values.first.count)
           .to be(:==, 2)
-        expect(snap.metrics.find { |m| m.name == :size }.series.first.value.count)
+        expect(snap.metrics.find { |m| m.name == :size }.series.values.first.count)
           .to be(:==, 2)
-        expect(snap.metrics.find { |m| m.name == :ndur }.series.first.value.count)
+        expect(snap.metrics.find { |m| m.name == :ndur }.series.values.first.count)
           .to be(:==, 2)
       end
 
       it "nested arrays are frozen" do
         dur = snapshot.metrics.find { |m| m.name == :dur }
-        expect(dur.series.first.value.cumulative_buckets.frozen?).to be(:==, true)
+        expect(dur.series.values.first.cumulative_buckets.frozen?).to be(:==, true)
 
         ndur = snapshot.metrics.find { |m| m.name == :ndur }
-        expect(ndur.series.first.value.positive_buckets.frozen?).to be(:==, true)
-        expect(ndur.series.first.value.negative_buckets.frozen?).to be(:==, true)
+        expect(ndur.series.values.first.positive_buckets.frozen?).to be(:==, true)
+        expect(ndur.series.values.first.negative_buckets.frozen?).to be(:==, true)
       end
 
       it "nested inner pairs are also frozen" do
         dur = snapshot.metrics.find { |m| m.name == :dur }
-        expect(dur.series.first.value.cumulative_buckets.first.frozen?).to be(:==, true)
+        expect(dur.series.values.first.cumulative_buckets.first.frozen?).to be(:==, true)
 
         ndur = snapshot.metrics.find { |m| m.name == :ndur }
-        expect(ndur.series.first.value.positive_buckets.first.frozen?).to be(:==, true)
-        expect(ndur.series.first.value.negative_buckets.first.frozen?).to be(:==, true)
+        expect(ndur.series.values.first.positive_buckets.first.frozen?).to be(:==, true)
+        expect(ndur.series.values.first.negative_buckets.first.frozen?).to be(:==, true)
       end
     end
   end

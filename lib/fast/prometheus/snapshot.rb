@@ -4,9 +4,17 @@ module Fast
   module Prometheus
     # Immutable value types for snapshots.
     #
-    # The per-series types are Structs frozen where they are built, not
-    # Data: Data.new allocates two objects besides the instance, and a
-    # scrape builds one of these per series. The per-registry types are Data.
+    # A MetricSnapshot's +series+ is the metric's store as it stood at one
+    # instant: a frozen Hash from each series' label values (an Array in
+    # +label_names+ order, the store's own key) to its value. Counter and
+    # gauge values are Floats; the other types' values are the frozen
+    # Structs below, built from the live slot while the store was locked.
+    # Nothing per series is copied beyond that, so a snapshot of any size
+    # costs one Hash per metric.
+    #
+    # The value shapes are Structs frozen where they are built, not Data:
+    # Data.new allocates two objects besides the instance, and a scrape
+    # builds one of these per histogram, summary or native histogram series.
     # (sum and count shadow Enumerable's on the Structs, as they would on Data.)
 
     HistogramValue = Struct.new(:sum, :count, :cumulative_buckets) # rubocop:disable Lint/StructNewOverride
@@ -14,34 +22,20 @@ module Fast
     NativeHistogramValue = Struct.new(:schema, :zero_threshold, :zero_count, :sum, :count, # rubocop:disable Lint/StructNewOverride
                                       :positive_buckets, :negative_buckets)
 
-    Series = Struct.new(:labels, :value)
-
     SummaryValue = Struct.new(:sum, :count) # rubocop:disable Lint/StructNewOverride
 
     MetricSnapshot = Data.define(:name, :docstring, :type, :label_names, :series) do
-      # Build a MetricSnapshot from a live metric. Reads only public readers;
-      # #snapshot_values hands over fresh frozen label hashes and frozen
-      # values, so nothing here is copied again. The whole build runs under
-      # the metric's lock so no series is observed mid-mutation and no writer
-      # interleaves between series.
+      # Build a MetricSnapshot from a live metric. +series+ is the metric's
+      # store copied and its slots frozen under the metric's lock (see
+      # Metric#snapshot_values), so no series is observed mid-mutation and
+      # no writer interleaves between series.
       def self.of(metric)
-        metric.synchronize do
-          new(
-            metric.name,
-            metric.docstring,
-            metric.type,
-            metric.labels.dup.freeze,
-            build_series(metric).freeze
-          )
-        end
+        new(metric.name, metric.docstring, metric.type, metric.labels.dup.freeze, metric.snapshot_values.freeze)
       end
 
-      # each_pair, not map: a two-parameter block gets key and value
-      # directly, where map would build a pair Array per series.
-      def self.build_series(metric)
-        series = []
-        metric.snapshot_values.each_pair { |labels, value| series << Series.new(labels, value).freeze }
-        series
+      # The {name => value} Hash for one series' label values.
+      def labels(values)
+        label_names.zip(values).to_h
       end
     end
 

@@ -191,7 +191,7 @@ describe Fast::Prometheus::Metric do
     it "returns label-hash keyed frozen values, built under the store lock" do
       metric = TestMetric.new(:test, docstring: "help", labels: [:method])
       metric.touch(labels: { method: "get" })
-      expect(metric.snapshot_values).to be(:==, { method: "get" } => 1.0)
+      expect(metric.snapshot_values).to be(:==, ["get"] => 1.0)
     end
   end
 

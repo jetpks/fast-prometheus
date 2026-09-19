@@ -213,9 +213,9 @@ describe Fast::Prometheus::NativeHistogram do
     it "keys frozen NativeHistogramValues by label set, matching #get and MetricSnapshot.of" do
       nh = Fast::Prometheus::NativeHistogram.new(:t, docstring: "t", labels: [:service])
       nh.observe(1.0, labels: { service: "auth" })
-      value = nh.snapshot_values[{ service: "auth" }]
+      value = nh.snapshot_values[["auth"]]
       expect(value).to be(:==, nh.get(labels: { service: "auth" }))
-      expect(value).to be(:==, Fast::Prometheus::MetricSnapshot.of(nh).series.first.value)
+      expect(value).to be(:==, Fast::Prometheus::MetricSnapshot.of(nh).series.values.first)
     end
   end
 

@@ -71,15 +71,17 @@ module Fast
       end
 
       def values
-        snapshot_values
+        series_map { |slot| snapshot_value(slot) }
       end
 
       # Every series' value in its frozen snapshot shape (see HistogramValue,
       # SummaryValue, NativeHistogramValue; Counter/Gauge use the already-
-      # frozen Float), keyed by label hash, built under the store lock. The
-      # seam MetricSnapshot uses to build a consistent view of every series.
+      # frozen Float), keyed by the series' label values in #labels order,
+      # the store's own key. The store is copied and its slots frozen under
+      # the lock, so this is a consistent view of every series at one
+      # instant that costs one Hash. The seam MetricSnapshot uses.
       def snapshot_values
-        series_map { |slot| snapshot_value(slot) }
+        store.synchronize { store.to_h.transform_values! { |slot| snapshot_value(slot) } }
       end
 
       # Runs the block exclusively with respect to every other mutation or read
