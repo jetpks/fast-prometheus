@@ -33,8 +33,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   builds its body in UTF-8 from the first byte, matching the `charset=utf-8` it
   advertises. Bytes that are not valid UTF-8 are replaced, not preserved — see
   Normalization in the metrics reference. The cost is on the labeled write
-  path: 6–13% fewer iterations per second in `benchmark/observe.rb`, with bound
-  and unlabeled calls and every allocation budget unchanged.
+  path: about 5–10% fewer iterations per second in `benchmark/observe.rb`
+  against 0.3.2 in a paired run, with bound and unlabeled calls and every
+  allocation budget unchanged.
 - The `method` label on `Middleware::Instrumentation` and
   `Rack::Instrumentation` is allowlisted to the RFC 9110 methods plus `PATCH`;
   every other token is counted as `method="_OTHER"`, the value OpenTelemetry's
@@ -54,9 +55,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   already registered under either of their names before reusing it: it must
   declare `labels: %i[method status]` and be a kind `record` can drive — a
   counter under the counter name, something observable under the duration name.
-  A mismatch raises a `Fast::Prometheus::Error` from the constructor, at boot
-  where the mistaken declaration is, instead of once per request from inside
-  the app's request path. `InvalidLabelSet` is the label case.
+  A mismatch raises `InvalidMetricType` (kind) or `InvalidLabelSet` (labels)
+  from the constructor, at boot where the mistaken declaration is, instead of
+  once per request from inside the app's request path.
 - **Breaking:** `OTLP::Mapper.new(start_time:)` takes a `Time`, and both it and
   `snapshot.taken_at` are carried as exact nanoseconds (`tv_sec`/`tv_nsec`)
   rather than through a `Float`, which lost the low ~256 ns at epoch
