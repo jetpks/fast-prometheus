@@ -16,6 +16,18 @@ describe Fast::Prometheus::Histogram do
       end.to raise_exception(ArgumentError)
     end
 
+    it "raises on an infinite bucket bound" do
+      expect do
+        Fast::Prometheus::Histogram.new(:t, docstring: "t", buckets: [1, Float::INFINITY])
+      end.to raise_exception(ArgumentError)
+    end
+
+    it "raises on a NaN bucket bound" do
+      expect do
+        Fast::Prometheus::Histogram.new(:t, docstring: "t", buckets: [1, Float::NAN])
+      end.to raise_exception(ArgumentError)
+    end
+
     it "raises on :le label" do
       expect do
         Fast::Prometheus::Histogram.new(:t, docstring: "t", labels: [:le])

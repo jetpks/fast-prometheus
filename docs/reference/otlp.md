@@ -73,7 +73,7 @@ Methods
 
 | Signature | Returns | Notes |
 |---|---|---|
-| `request(snapshot)` | `Fast::Prometheus::OTLP::Proto::ExportMetricsServiceRequest` | `:counter`/`:gauge` map to OTLP `Sum`/`Gauge`; `:histogram` maps to OTLP `Histogram` (cumulative); `:summary` maps to OTLP `Summary`; `:native_histogram` maps to OTLP `ExponentialHistogram`, with `scale: schema` and OTLP bucket offsets equal to `prom_index - 1`. |
+| `request(snapshot)` | `Fast::Prometheus::OTLP::Proto::ExportMetricsServiceRequest` | `:counter`/`:gauge` map to OTLP `Sum`/`Gauge`; `:histogram` maps to OTLP `Histogram` (cumulative); `:summary` maps to OTLP `Summary`; `:native_histogram` maps to OTLP `ExponentialHistogram`, whose `scale` is the series' `schema` — one step coarser for each halving the mapper needs to fit a wide series into 1024 dense buckets per side (see below) — and whose bucket offsets are `prom_index - 1` at that scale. |
 
 An `ExponentialHistogram` data point carries only its series' **finite** observations: OTLP
 has no bucket for an infinity and no count for a NaN, so `±Inf` (which `NativeHistogram`

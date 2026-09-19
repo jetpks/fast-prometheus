@@ -105,16 +105,20 @@ module Fast
           end
         end
 
-        # LabelPair { string name = 1; string value = 2 }.
+        # LabelPair { string name = 1; string value = 2 }. Implicit presence:
+        # an empty value is the field's default and is not sent, as the
+        # declared Proto::LabelPair (and google-protobuf) leave it out.
         private_class_method def self.append_label_pair(out, name, value)
           name = name.name if name.is_a?(Symbol)
           value = value.to_s
           name_size = name.bytesize
           value_size = value.bytesize
+          size = 1 + varint_size(name_size) + name_size
+          size += 1 + varint_size(value_size) + value_size unless value.empty?
           out << METRIC_LABEL
-          append_varint(out, 2 + varint_size(name_size) + name_size + varint_size(value_size) + value_size)
+          append_varint(out, size)
           Fast::Protowire::Wire.append_length_delimited(out, LABEL_NAME, name)
-          Fast::Protowire::Wire.append_length_delimited(out, LABEL_VALUE, value)
+          Fast::Protowire::Wire.append_length_delimited(out, LABEL_VALUE, value) unless value.empty?
         end
 
         # Counter / Gauge { double value = 1 }: empty when the value is the

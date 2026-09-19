@@ -47,6 +47,29 @@ describe "allocations" do
     expect(allocations(100) { counter.increment(labels: labels) }).to be(:<, 2)
   end
 
+  # An ASCII-only value is kept as is whatever it is tagged with, so a Rack
+  # env's BINARY String costs no more than a UTF-8 literal.
+  it "resolves a BINARY-tagged ASCII label value with one object (its key)" do
+    counter = registry.counter(:hits, docstring: "hits", labels: [:method])
+    labels = { method: "GET".b }
+    counter.increment(labels: labels)
+    expect(allocations(100) { counter.increment(labels: labels) }).to be(:<, 2)
+  end
+
+  it "resolves an Integer label value with two objects (its to_s and its key)" do
+    counter = registry.counter(:hits, docstring: "hits", labels: [:status])
+    labels = { status: 200 }
+    counter.increment(labels: labels)
+    expect(allocations(100) { counter.increment(labels: labels) }).to be(:<, 3)
+  end
+
+  it "resolves a Symbol label value with two objects (its to_s and its key)" do
+    counter = registry.counter(:hits, docstring: "hits", labels: [:method])
+    labels = { method: :get }
+    counter.increment(labels: labels)
+    expect(allocations(100) { counter.increment(labels: labels) }).to be(:<, 3)
+  end
+
   # Normalizing a label value to UTF-8 allocates nothing when it already is
   # valid UTF-8, even for a String the metric has never seen: building the
   # value costs what it costs, and the increment still adds only its key. The

@@ -169,11 +169,16 @@ module Fast
         @preset_labels.size == @labels.size
       end
 
-      # Label values and docstrings are stored as valid UTF-8. Valid UTF-8 is
-      # returned as is — #valid_encoding? is coderange-cached and String#scrub
-      # would copy — so the hot path still allocates nothing per value.
+      # Label values and docstrings are stored as valid UTF-8 bytes. An
+      # ASCII-only String already is one, whatever encoding it is tagged with
+      # (US-ASCII from Integer#to_s or Symbol#to_s, BINARY from a Rack env),
+      # so it is returned as is: #ascii_only? is coderange-cached, and the hot
+      # path allocates nothing per value. Only a non-ASCII String pays for the
+      # tag check, and valid UTF-8 is still returned as is — String#scrub
+      # would copy.
       def normalize_text(value)
         string = value.is_a?(String) ? value : value.to_s
+        return string if string.ascii_only?
 
         case string.encoding
         when Encoding::UTF_8
