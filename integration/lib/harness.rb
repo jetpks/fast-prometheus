@@ -7,13 +7,12 @@ require "rbconfig"
 
 module Integration
   # Builds/installs a fast-prometheus gem artifact into an isolated GEM_HOME,
-  # then runs each check script in its own child ruby process against that
-  # install. Never puts the checkout's lib/ on any child's load path.
+  # with every dependency (fast-protowire included) resolved from rubygems as
+  # a user's install would, then runs each check script in its own child
+  # ruby process against that install. Never puts the checkout's lib/ on any
+  # child's load path.
   class Harness
     REPO_ROOT = File.expand_path("../..", __dir__)
-    # fast-protowire is installed into the isolated GEM_HOME from a sibling
-    # checkout when one exists (or FAST_PROTOWIRE_DIR), else from rubygems.
-    PROTOWIRE_DIR = ENV.fetch("FAST_PROTOWIRE_DIR", File.expand_path("../fast-protowire", REPO_ROOT))
     CHECKS_DIR = File.expand_path("../checks", __dir__)
     RUBY = RbConfig.ruby
 
@@ -56,8 +55,7 @@ module Integration
         gem_home = File.join(root, "gemhome")
         FileUtils.mkdir_p(gem_home)
 
-        dependencies = File.directory?(PROTOWIRE_DIR) ? [build_gem(root, PROTOWIRE_DIR, "fast-protowire")] : []
-        unless dependencies.all? && [*dependencies, gem_file].all? { |file| install_gem(file, gem_home) }
+        unless install_gem(gem_file, gem_home)
           fail_all!("gem install failed")
           return finish
         end
@@ -82,10 +80,10 @@ module Integration
 
     private
 
-    def build_gem(root, dir = REPO_ROOT, name = "fast-prometheus")
-      gemspec = File.join(dir, "#{name}.gemspec")
-      output = File.join(root, "#{name}.gem")
-      _stdout, stderr, status = Open3.capture3("gem", "build", gemspec, "--output", output, chdir: dir)
+    def build_gem(root)
+      gemspec = File.join(REPO_ROOT, "fast-prometheus.gemspec")
+      output = File.join(root, "fast-prometheus.gem")
+      _stdout, stderr, status = Open3.capture3("gem", "build", gemspec, "--output", output, chdir: REPO_ROOT)
       unless status.success?
         @out.puts "# gem build failed:\n#{stderr}"
         return nil
