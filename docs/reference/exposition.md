@@ -8,7 +8,7 @@ Methods
 
 | Signature | Returns | Notes |
 |---|---|---|
-| `.render(snapshot)` | `String` | Content type `Formats::Text::CONTENT_TYPE` (`"text/plain; version=0.0.4; charset=utf-8"`). Metrics of type `:native_histogram` are omitted entirely — no `HELP`/`TYPE` lines, no series. |
+| `.render(snapshot)` | `String` | Content type `Formats::Text::CONTENT_TYPE` (`"text/plain; version=0.0.4; charset=utf-8"`). The body is always a UTF-8-tagged, valid String, matching that `charset`: the buffer starts in UTF-8 and the snapshot's docstrings and label values were normalized where they entered the store (see [Normalization](metrics.md#normalization)), so no combination of inputs can produce a mixed or invalid encoding here. Metrics of type `:native_histogram` are omitted entirely — no `HELP`/`TYPE` lines, no series. |
 
 ## `Formats::Protobuf`
 

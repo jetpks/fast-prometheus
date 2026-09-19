@@ -64,6 +64,70 @@ describe Fast::Prometheus::Metric do
         TestMetric.new(:valid_name, docstring: "help", labels: [:method], preset_labels: { unknown: "x" })
       end.to raise_exception(Fast::Prometheus::InvalidLabelSet)
     end
+
+    it "transcodes a docstring in another encoding" do
+      metric = TestMetric.new(:valid_name, docstring: "caf\xe9".dup.force_encoding("ISO-8859-1"))
+      expect(metric.docstring).to be(:==, "café")
+    end
+
+    it "scrubs an invalid UTF-8 docstring" do
+      metric = TestMetric.new(:valid_name, docstring: "caf\xff".b)
+      expect(metric.docstring.encoding).to be(:==, Encoding::UTF_8)
+      expect(metric.docstring.valid_encoding?).to be(:==, true)
+    end
+  end
+
+  describe "label names" do
+    it "normalizes String names to Symbols" do
+      metric = TestMetric.new(:test, docstring: "help", labels: ["method"])
+      expect(metric.labels).to be(:==, [:method])
+    end
+
+    it "accepts a Symbol key for a String-declared label" do
+      metric = TestMetric.new(:test, docstring: "help", labels: ["method"])
+      metric.touch(labels: { method: "get" })
+      expect(metric.values).to be(:==, { method: "get" } => 1.0)
+    end
+
+    it "normalizes preset keys too" do
+      metric = TestMetric.new(:test, docstring: "help", labels: [:method], preset_labels: { "method" => "get" })
+      expect(metric.values).to be(:==, { method: "get" } => 0.0)
+    end
+
+    it "rejects duplicate names" do
+      expect do
+        TestMetric.new(:test, docstring: "help", labels: %i[x x])
+      end.to raise_exception(Fast::Prometheus::InvalidLabelName)
+    end
+
+    it "rejects a String duplicating a Symbol name" do
+      expect do
+        TestMetric.new(:test, docstring: "help", labels: [:x, "x"])
+      end.to raise_exception(Fast::Prometheus::InvalidLabelName)
+    end
+  end
+
+  describe "label values" do
+    let(:metric) { TestMetric.new(:test, docstring: "help", labels: [:v]) }
+
+    it "stores valid UTF-8 as the caller's own object" do
+      value = +"café"
+      expect(metric.public_resolve(v: value).first.equal?(value)).to be(:==, true)
+    end
+
+    it "reinterprets BINARY bytes as UTF-8 and scrubs them" do
+      expect(metric.public_resolve(v: "a\xffb".b)).to be(:==, ["a�b"])
+    end
+
+    it "transcodes another encoding" do
+      expect(metric.public_resolve(v: "caf\xe9".dup.force_encoding("ISO-8859-1"))).to be(:==, ["café"])
+    end
+
+    it "normalizes a with_labels value the same way" do
+      bound = metric.with_labels(v: "caf\xe9".dup.force_encoding("ISO-8859-1"))
+      bound.touch
+      expect(metric.values).to be(:==, { v: "café" } => 1.0)
+    end
   end
 
   describe "#with_labels" do
@@ -90,6 +154,14 @@ describe Fast::Prometheus::Metric do
     it "returns the declared label names" do
       metric = TestMetric.new(:test, docstring: "help", labels: %i[method status])
       expect(metric.labels).to be(:==, %i[method status])
+    end
+
+    it "returns a frozen copy the caller cannot grow" do
+      names = %i[method]
+      metric = TestMetric.new(:test, docstring: "help", labels: names)
+      names << :status
+      expect(metric.labels).to be(:==, %i[method])
+      expect(metric.labels.frozen?).to be(:==, true)
     end
 
     it "no longer responds to label_names" do

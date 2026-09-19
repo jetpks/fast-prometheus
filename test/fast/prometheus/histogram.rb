@@ -21,6 +21,24 @@ describe Fast::Prometheus::Histogram do
         Fast::Prometheus::Histogram.new(:t, docstring: "t", labels: [:le])
       end.to raise_exception(Fast::Prometheus::InvalidLabelName)
     end
+
+    it "raises on a String \"le\" label" do
+      expect do
+        Fast::Prometheus::Histogram.new(:t, docstring: "t", labels: ["le"])
+      end.to raise_exception(Fast::Prometheus::InvalidLabelName)
+    end
+  end
+
+  describe "#buckets" do
+    it "returns a frozen copy the caller cannot grow" do
+      buckets = [1, 2]
+      h = Fast::Prometheus::Histogram.new(:t, docstring: "t", buckets: buckets)
+      buckets << 0.5
+      expect(h.buckets).to be(:==, [1, 2])
+      expect(h.buckets.frozen?).to be(:==, true)
+      h.observe(1.5)
+      expect(h.get).to be(:==, { "1" => 0, "2" => 1, "+Inf" => 1, "sum" => 1.5 })
+    end
   end
 
   describe "#observe" do
