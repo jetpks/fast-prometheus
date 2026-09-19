@@ -4,9 +4,6 @@ source "https://rubygems.org"
 
 gemspec
 
-# Until fast-protowire is published, resolve it from the sibling checkout.
-gem "fast-protowire", path: "../fast-protowire"
-
 group :test do
   gem "sus"
   gem "sus-fixtures-async"
