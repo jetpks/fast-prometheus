@@ -110,13 +110,3 @@ bundle exec ruby benchmark/exposition.rb                 # 36k-series scrape, ~2
   nothing; classic histogram observe is **3.0x** faster.
 - Native histogram observe runs at **1.26M i/s** with no `prometheus-client` equivalent.
 
-## The cost of locking
-
-Every number above is the locked implementation — the one this gem ships. Measured at
-0.1.0 against an unlocked control build on the same machine (`BENCH_QUICK=1`, single
-process: counter bound 2.45M i/s, counter labels 1.67M, histogram 2.01M, native histogram
-1.56M), the locked numbers landed at roughly 81–87% of control across these operations —
-the price of the guarantees in [Concurrency model](concurrency.md). The project's floor is
-60% of control on the same machine. Since then the lock is taken without allocating a Proc
-per call, which is why the bound counter now clears that old control outright; the
-remaining gap is the lock itself.
