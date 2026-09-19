@@ -241,4 +241,5 @@ All defined in `errors.rb`, all subclasses of `Fast::Prometheus::Error` (itself 
 | `InvalidMetricName` | A metric name fails `Metric::METRIC_NAME`. |
 | `InvalidLabelName` | A label name fails `Metric::LABEL_NAME`, starts with `__`, duplicates another declared name once both are normalized to `Symbol`s, or is reserved (`:le` on `Histogram`, `:quantile` on `Summary`). |
 | `InvalidLabelSet` | A label set has an unknown key, a preset label not in the declared labels, or is missing a required label at resolution time. |
+| `InvalidMetricType` | A metric already registered under one of the instrumentation's metric names is not the kind that name promises — see [Reusing a pre-registered metric](exposition.md#reusing-a-pre-registered-metric). |
 | `DuplicateMetric` | `Registry#register` is called with a name already registered. |
