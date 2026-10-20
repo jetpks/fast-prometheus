@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-19
+
+### Added
+
+- `fast/prometheus/instrumentation/completions` — an opt-in telemetry
+  adapter for the [fast-completions](https://github.com/jetpks/fast-llm)
+  gem: `Fast::Prometheus::Instrumentation::Completions` includes
+  `Fast::Completions::Telemetry::Sink` and turns the completion hooks into
+  five metrics on a registry — `llm_completions_total`
+  (`provider`/`model`/`stop_reason`), `llm_completions_errors_total`
+  (`error`), `llm_completions_duration_seconds` and
+  `llm_completions_ttfb_seconds` (`provider`/`model` and unlabeled
+  respectively, default buckets), and `llm_completions_tokens_total`
+  (`provider`/`model`/`kind`). Labels come from the live assistant Message
+  (`provider`/`model`, nil collapsed to `"unknown"` — never
+  `response_model`/`response_id`), the hook Symbols (`stop_reason`,
+  `error`), and the frozen `kind` values `"input"`/`"output"`; a nil
+  `usage` skips the token counters. A warm notification-to-metric dispatch
+  allocates nothing: chained Hash lookups into metrics pre-bound once per
+  series via `with_labels`. fast-completions stays a runtime peer — the
+  require path fails loud with `LoadError` when the peer gem is absent —
+  and a metric pre-registered under one of the five names is validated
+  (type and labels) at construction, the `RequestMetrics` pattern. See
+  [the how-to](docs/how-to/instrument-completions.md).
+
 ## [0.4.0] - 2026-09-19
 
 ### Changed
