@@ -11,6 +11,7 @@
 | `fast/prometheus/middleware/instrumentation` | core, protocol-http |
 | `fast/prometheus/rack/exporter` | core, both formats, zlib |
 | `fast/prometheus/rack/instrumentation` | core |
+| `fast/prometheus/instrumentation/completions` | core, fast-completions (soft require, not a gemspec dependency) |
 | `fast/prometheus/otlp/mapper` | core, fast-protowire |
 | `fast/prometheus/otlp/http_exporter` | core, async-http |
 | `fast/prometheus/otlp/grpc_exporter` | core, async-http, async-grpc |

@@ -62,6 +62,7 @@ under Falcon and scraping it with a real Prometheus, see
 - [How to scrape native histograms](docs/how-to/scrape-native-histograms.md) — configure Prometheus to negotiate protobuf so native histograms aren't dropped.
 - [How to share one registry across boot paths](docs/how-to/share-a-registry.md) — use `fetch_or_register` so multiple boot paths can construct the same metric safely.
 - [How to export over OTLP](docs/how-to/export-otlp.md) — push metrics to an OTLP collector over gRPC or HTTP.
+- [How to instrument LLM completions](docs/how-to/instrument-completions.md) — record the fast-completions telemetry metrics from a `Fast::Completions` client.
 - [How to verify a release build](docs/how-to/verify-a-release.md) — run the integration harness against a packaged gem before tagging.
 
 ### Reference
