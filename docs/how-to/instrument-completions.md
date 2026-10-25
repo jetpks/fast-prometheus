@@ -23,7 +23,7 @@ for `Fast::Completions::Client`. You need an app that already constructs a
    `LoadError` when the peer gem is absent, instead of half-loading a sink that can never fire.
 
 2. Construct the sink — with a registry keyword when you don't want the default — and hand it to
-   the client in its `telemetry:` array:
+   the client in its `telemetry:` enumerable (any `Enumerable` of sinks — an Array, a Set, …):
 
    ```ruby
    sink = Fast::Prometheus::Instrumentation::Completions.new(registry: Fast::Prometheus.registry)
@@ -89,6 +89,6 @@ Two operational notes. Cardinality: nothing reclaims a series once it exists, an
 values are operator-controlled — `provider` and `model` are whatever the `Fast::Completions`
 `Model` you stream with declares, so the five families grow with the models you configure, not
 with your traffic. Concurrency: construct one sink per client and hand it to that client's
-`telemetry:` array — the client notifies its sinks inside the streaming task's own single-flight
+`telemetry:` enumerable — the client notifies its sinks inside the streaming task's own single-flight
 discipline, and the registry beneath is safe to share across threads and fibers (see
 [Concurrency model](../explanation/concurrency.md)).
