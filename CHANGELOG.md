@@ -5,7 +5,12 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.6.0] - 2026-10-30
+
+### Changed
+
+- **Breaking:** Ruby 3.3 support dropped — the required ruby version
+  floor is now `>= 3.4`, and the CI matrix runs Ruby 3.4 and 4.0.
 
 ## [0.5.0] - 2026-10-19
 
